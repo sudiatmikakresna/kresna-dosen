@@ -53,6 +53,10 @@ Izin `drive.file` berarti aplikasi hanya bisa mengakses file yang dibuatnya send
      --header "Authorization: Bearer <token>"
    ```
 
+   Atau pakai `.mcp.json` di repo ini (server `bimbingan`, sudah diaktifkan lewat `.claude/settings.json`):
+   cukup isi environment variable `BIMBINGAN_MCP_TOKEN` dengan token tadi. Di sesi cloud claude.ai/code,
+   tambahkan variabel itu di pengaturan environment (menu environment → Edit), lalu buka sesi baru.
+
 Tool yang tersedia:
 
 | Tool | Fungsi |
