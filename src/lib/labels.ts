@@ -1,5 +1,4 @@
 export const JENIS = [
-  { id: 'proposal', label: 'Proposal' },
   { id: 'bab1', label: 'Bab 1 · Pendahuluan' },
   { id: 'bab2', label: 'Bab 2 · Tinjauan Pustaka' },
   { id: 'bab3', label: 'Bab 3 · Metodologi' },
@@ -7,7 +6,7 @@ export const JENIS = [
   { id: 'draf_lengkap', label: 'Draf lengkap' },
 ] as const;
 
-export const TAHAP = ['proposal', 'bab1', 'bab2', 'bab3', 'bab4'] as const;
+export const TAHAP = ['bab1', 'bab2', 'bab3', 'bab4'] as const;
 
 export function labelJenis(id: string) {
   return JENIS.find((j) => j.id === id)?.label ?? id;

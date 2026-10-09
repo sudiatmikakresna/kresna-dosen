@@ -8,7 +8,7 @@ import { simpanGdocs, simpanUpload } from './actions';
 
 export function UploadForm({ versiBerikut }: { versiBerikut: Record<string, number> }) {
   const [mode, setMode] = useState<'file' | 'gdocs'>('file');
-  const [jenis, setJenis] = useState<string>('proposal');
+  const [jenis, setJenis] = useState<string>('bab1');
   const [catatan, setCatatan] = useState('');
   const [file, setFile] = useState<File | null>(null);
   const [progress, setProgress] = useState<number | null>(null);

@@ -41,7 +41,7 @@ export async function simpanBerkasBaru(
   return baru;
 }
 
-/** Status terakhir tiap tahap (proposal–bab 5) untuk satu mahasiswa. */
+/** Status terakhir tiap tahap (Bab 1–4) untuk satu mahasiswa. */
 export function tahapDari(daftar: Pick<Berkas, 'jenis' | 'versi' | 'status'>[]) {
   return TAHAP.map((jenis) => {
     const versi = daftar.filter((b) => b.jenis === jenis).sort((a, b) => b.versi - a.versi);

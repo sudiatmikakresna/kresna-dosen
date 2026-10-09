@@ -68,7 +68,7 @@ export default async function DashboardMahasiswa() {
               <button className="btn btn-outline-primary">Simpan</button>
             </div>
           </form>
-          <div className="row row-cols-2 row-cols-md-3 row-cols-lg-5 g-2">
+          <div className="row row-cols-2 row-cols-md-4 g-2">
             {tahap.map((t) => (
               <div className="col" key={t.jenis}>
                 <div className="border p-2 h-100">
@@ -102,7 +102,7 @@ export default async function DashboardMahasiswa() {
                   <StatusBadge s={b.status} />
                 </Link>
               ))}
-              {!daftar.length && <div className="list-group-item text-body-secondary">Belum ada berkas. Mulai dengan mengunggah proposal.</div>}
+              {!daftar.length && <div className="list-group-item text-body-secondary">Belum ada berkas. Mulai dengan mengunggah Bab 1.</div>}
             </div>
           </div>
         </div>
