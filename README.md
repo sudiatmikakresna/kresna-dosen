@@ -68,6 +68,18 @@ Tool yang tersedia:
 
 Catatan dari MCP berstatus draf dan diberi label **via MCP** di halaman tinjau. Mahasiswa baru melihatnya setelah dikirim.
 
+### Review otomatis: `/review-skripsi`
+
+Skill Claude Code di `.claude/skills/review-skripsi/` mereview semua berkas di antrian review lewat MCP
+`bimbingan`, menulis catatan revisi, lalu langsung mengirimkannya ke mahasiswa.
+
+- Jalankan `/review-skripsi` di Claude Code dari folder repo ini. Argumen opsional: NIM, nama, ID berkas,
+  atau instruksi fokus, mis. `/review-skripsi 2301020053` atau `/review-skripsi fokus konsistensi istilah`.
+- Agar bisa dipakai dari folder mana pun, salin foldernya ke `~/.claude/skills/review-skripsi/`.
+- Pengaman: hanya berjalan saat diketik, tidak pernah menyetujui bab secara otomatis (berkas yang tampak
+  layak disetujui disimpan sebagai draf untuk keputusan dosen), dan melewati berkas yang sudah punya draf.
+- Revisi versi sebelumnya dicek ulang; yang belum diperbaiki ditulis lagi sebagai catatan wajib.
+
 ## Google Docs
 
 Mahasiswa harus mengatur berbagi ke *"Siapa saja yang memiliki link – Pelihat"*. Saat dikirim, sistem menyimpan **salinan PDF ke Google Drive dosen** dan teks dokumen sebagai versi tersebut, jadi revisi tidak bergeser walaupun dokumen asli terus diedit. Pratinjau menampilkan dokumen langsung, dengan tautan ke salinan PDF.
