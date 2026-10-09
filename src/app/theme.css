@@ -1,0 +1,138 @@
+/* Tema Primakara di atas Bootstrap 5.3 */
+:root, [data-bs-theme=light] {
+  --pk-navy: #1D2B58;
+  --pk-navy-dark: #032038;
+  --pk-teal: #009EA9;
+  --pk-teal-text: #00737B;
+  --pk-cyan: #1DCAD3;
+
+  --bs-primary: #1D2B58;
+  --bs-primary-rgb: 29, 43, 88;
+  --bs-primary-text-emphasis: #121B37;
+  --bs-primary-bg-subtle: #E4E8F3;
+  --bs-primary-border-subtle: #B8C1DD;
+
+  --bs-info: #1DCAD3;
+  --bs-info-rgb: 29, 202, 211;
+  --bs-info-text-emphasis: #04545A;
+  --bs-info-bg-subtle: #D7F6F8;
+  --bs-info-border-subtle: #98E5EA;
+
+  --bs-dark: #032038;
+  --bs-dark-rgb: 3, 32, 56;
+
+  --bs-body-color: #032038;
+  --bs-body-color-rgb: 3, 32, 56;
+  --bs-emphasis-color: #032038;
+  --bs-emphasis-color-rgb: 3, 32, 56;
+  --bs-secondary-color: rgba(3, 32, 56, 0.72);
+  --bs-tertiary-bg: #F2F6F8;
+  --bs-tertiary-bg-rgb: 242, 246, 248;
+  --bs-border-color: #D5DEE5;
+
+  --bs-link-color: #00737B;
+  --bs-link-color-rgb: 0, 115, 123;
+  --bs-link-hover-color: #005158;
+  --bs-link-hover-color-rgb: 0, 81, 88;
+
+  --bs-border-radius: 0;
+  --bs-border-radius-sm: 0;
+  --bs-border-radius-lg: 0;
+  --bs-border-radius-xl: 0;
+  --bs-border-radius-xxl: 0;
+
+  --bs-focus-ring-color: rgba(0, 158, 169, 0.35);
+}
+
+.btn-primary {
+  --bs-btn-bg: #1D2B58;
+  --bs-btn-border-color: #1D2B58;
+  --bs-btn-hover-bg: #032038;
+  --bs-btn-hover-border-color: #032038;
+  --bs-btn-active-bg: #032038;
+  --bs-btn-active-border-color: #032038;
+  --bs-btn-disabled-bg: #1D2B58;
+  --bs-btn-disabled-border-color: #1D2B58;
+  --bs-btn-focus-shadow-rgb: 0, 158, 169;
+}
+.btn-outline-primary {
+  --bs-btn-color: #1D2B58;
+  --bs-btn-border-color: #1D2B58;
+  --bs-btn-hover-color: #FFFFFF;
+  --bs-btn-hover-bg: #1D2B58;
+  --bs-btn-hover-border-color: #1D2B58;
+  --bs-btn-active-color: #FFFFFF;
+  --bs-btn-active-bg: #1D2B58;
+  --bs-btn-active-border-color: #1D2B58;
+  --bs-btn-focus-shadow-rgb: 0, 158, 169;
+}
+.btn-link {
+  --bs-btn-color: #00737B;
+  --bs-btn-hover-color: #005158;
+  --bs-btn-active-color: #005158;
+}
+
+.progress, .progress-stacked { --bs-progress-bar-bg: #009EA9; }
+
+.form-control:focus, .form-select:focus, .form-check-input:focus {
+  border-color: #1DCAD3;
+  box-shadow: 0 0 0 0.25rem rgba(0, 158, 169, 0.25);
+}
+.form-check-input:checked { background-color: #009EA9; border-color: #009EA9; }
+.btn-close:focus { box-shadow: 0 0 0 0.25rem rgba(0, 158, 169, 0.25); }
+
+.navbar { border-bottom: 3px solid #1DCAD3; }
+.navbar[data-bs-theme=dark] { --bs-navbar-active-color: #1DCAD3; --bs-navbar-hover-color: #FFFFFF; }
+.navbar[data-bs-theme=dark] .nav-link.active { box-shadow: inset 0 -3px 0 #1DCAD3; }
+
+.nav-tabs .nav-link.active { box-shadow: inset 0 3px 0 #1DCAD3; }
+
+/* Warna status mengikuti palet Primakara */
+:root, [data-bs-theme=light] {
+  /* Disetujui: teal tua */
+  --bs-success: #00737B;
+  --bs-success-rgb: 0, 115, 123;
+  --bs-success-text-emphasis: #004A50;
+  --bs-success-bg-subtle: #D6EEF0;
+  --bs-success-border-subtle: #9CD3D8;
+  /* Perlu revisi: cyan */
+  --bs-warning: #1DCAD3;
+  --bs-warning-rgb: 29, 202, 211;
+  --bs-warning-text-emphasis: #04545A;
+  --bs-warning-bg-subtle: #D7F6F8;
+  --bs-warning-border-subtle: #98E5EA;
+  /* Menunggu review: navy muda */
+  --bs-secondary: #4A5A80;
+  --bs-secondary-rgb: 74, 90, 128;
+  /* Draf agent: navy */
+  --bs-info: #1D2B58;
+  --bs-info-rgb: 29, 43, 88;
+  --bs-info-text-emphasis: #1D2B58;
+  --bs-info-bg-subtle: #E4E8F3;
+  --bs-info-border-subtle: #B8C1DD;
+}
+.text-bg-warning { color: #032038 !important; }
+.text-bg-info { color: #FFFFFF !important; }
+.btn-success {
+  --bs-btn-bg: #00737B; --bs-btn-border-color: #00737B;
+  --bs-btn-hover-bg: #005158; --bs-btn-hover-border-color: #005158;
+  --bs-btn-active-bg: #005158; --bs-btn-active-border-color: #005158;
+}
+.btn-outline-success {
+  --bs-btn-color: #00737B; --bs-btn-border-color: #00737B;
+  --bs-btn-hover-bg: #00737B; --bs-btn-hover-border-color: #00737B;
+  --bs-btn-active-bg: #00737B; --bs-btn-active-border-color: #00737B;
+}
+.btn-warning {
+  --bs-btn-color: #032038; --bs-btn-bg: #1DCAD3; --bs-btn-border-color: #1DCAD3;
+  --bs-btn-hover-color: #032038; --bs-btn-hover-bg: #17B3BB; --bs-btn-hover-border-color: #17B3BB;
+  --bs-btn-active-color: #032038; --bs-btn-active-bg: #17B3BB; --bs-btn-active-border-color: #17B3BB;
+}
+.btn-outline-warning {
+  --bs-btn-color: #04545A; --bs-btn-border-color: #1DCAD3;
+  --bs-btn-hover-color: #032038; --bs-btn-hover-bg: #1DCAD3; --bs-btn-hover-border-color: #1DCAD3;
+  --bs-btn-active-color: #032038; --bs-btn-active-bg: #1DCAD3; --bs-btn-active-border-color: #1DCAD3;
+}
+
+.pdf-frame { width: 100%; height: 70vh; min-height: 480px; border: 0; background: #fff; }
+.pre-wrap { white-space: pre-wrap; }
