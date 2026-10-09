@@ -10,6 +10,7 @@ export async function ekstrakTeks(buf: Buffer, namaFile: string): Promise<string
       const { text } = await extractText(pdf, { mergePages: false });
       return text.map((t, i) => `--- Halaman ${i + 1} ---\n${t}`).join('\n\n');
     }
+    if (nama.endsWith('.csv')) return buf.toString('utf8');
     if (nama.endsWith('.docx')) {
       const mammoth = await import('mammoth');
       const { value } = await mammoth.extractRawText({ buffer: buf });

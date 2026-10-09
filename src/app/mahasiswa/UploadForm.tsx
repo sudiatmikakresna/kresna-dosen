@@ -1,7 +1,7 @@
 'use client';
 
 import { useActionState, useState } from 'react';
-import { JENIS } from '@/lib/labels';
+import { ekstensiDiizinkan, JENIS, terpisah } from '@/lib/labels';
 import { SubmitButton } from '@/components/SubmitButton';
 import { simpanGdocs, simpanUpload } from './actions';
 
@@ -44,10 +44,14 @@ export function UploadForm({ versiBerikut, driveSiap }: { versiBerikut: Record<s
   const [error, setError] = useState<string | null>(null);
   const [gState, gAction] = useActionState(simpanGdocs, undefined);
 
+  const izin = ekstensiDiizinkan(jenis);
+  const lainnya = terpisah(jenis);
+
   async function kirimFile(e: React.FormEvent) {
     e.preventDefault();
     if (!file) return setError('Pilih berkas terlebih dahulu.');
-    if (!/\.(pdf|docx)$/i.test(file.name)) return setError('Hanya PDF atau DOCX.');
+    const ext = file.name.toLowerCase().split('.').pop() ?? '';
+    if (!izin.includes(ext)) return setError(`Jenis file tidak diterima. Gunakan: ${izin.join(', ').toUpperCase()}.`);
     if (file.size > 20 * 1024 * 1024) return setError('Ukuran berkas maksimal 20 MB.');
     setError(null);
     setProgress(0);
@@ -79,7 +83,11 @@ export function UploadForm({ versiBerikut, driveSiap }: { versiBerikut: Record<s
       <select id="jenis" name="jenis" className="form-select" value={jenis} onChange={(e) => setJenis(e.target.value)}>
         {JENIS.map((j) => <option key={j.id} value={j.id}>{j.label}</option>)}
       </select>
-      <div className="form-text">Akan disimpan sebagai <strong>versi {versiBerikut[jenis] ?? 1}</strong>.</div>
+      <div className="form-text">
+        {lainnya
+          ? 'Untuk lampiran, data hasil penelitian, kuesioner, dan dokumen pendukung lain. Setiap unggahan disimpan sebagai dokumen terpisah.'
+          : <>Akan disimpan sebagai <strong>versi {versiBerikut[jenis] ?? 1}</strong>.</>}
+      </div>
     </div>
   );
   const catatanField = (
@@ -109,8 +117,8 @@ export function UploadForm({ versiBerikut, driveSiap }: { versiBerikut: Record<s
             {jenisField}
             <div className="mb-3">
               <label htmlFor="file" className="form-label">Berkas</label>
-              <input id="file" className="form-control" type="file" accept=".pdf,.docx" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
-              <div className="form-text">PDF atau DOCX, maksimal 20 MB. Disimpan di Google Drive dosen pembimbing.</div>
+              <input id="file" className="form-control" type="file" accept={izin.map((x) => `.${x}`).join(',')} onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
+              <div className="form-text">{izin.join(', ').toUpperCase()}, maksimal 20 MB. Disimpan di Google Drive dosen pembimbing.</div>
             </div>
             {progress !== null && (
               <div className="progress mb-3" role="progressbar" aria-label="Progres unggah" aria-valuenow={progress} aria-valuemin={0} aria-valuemax={100}>

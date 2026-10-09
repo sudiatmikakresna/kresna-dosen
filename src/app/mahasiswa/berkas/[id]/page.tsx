@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { wajibMahasiswa } from '@/lib/auth';
-import { labelJenis, tanggal, waktu } from '@/lib/labels';
+import { labelJenis, tanggal, terpisah, waktu } from '@/lib/labels';
 import { berkasMahasiswa, detailBerkas } from '@/lib/service';
 import { Preview } from '@/components/Preview';
 import { StatusBadge } from '@/components/StatusBadge';
@@ -35,10 +35,12 @@ export default async function DetailBerkasMahasiswa({ params }: { params: Promis
           <div>
             <h1 className="h4 mb-1">{labelJenis(b.jenis)} <StatusBadge s={b.status} className="align-middle fs-6" /></h1>
             <div className="small text-body-secondary font-monospace">
-              {b.sumber === 'gdocs' ? 'Google Docs' : b.fileName} · versi {b.versi} · dikirim {tanggal(b.createdAt)}
+              {b.sumber === 'gdocs' ? 'Google Docs' : b.fileName}{terpisah(b.jenis) ? '' : ` · versi ${b.versi}`} · dikirim {tanggal(b.createdAt)}
             </div>
           </div>
-          <Link href="/mahasiswa/upload" className="btn btn-primary">Unggah versi {lainnya[0].versi + 1}</Link>
+          <Link href="/mahasiswa/upload" className="btn btn-primary">
+            {terpisah(b.jenis) ? 'Unggah dokumen lain' : `Unggah versi ${lainnya[0].versi + 1}`}
+          </Link>
         </div>
       </div>
 
@@ -96,12 +98,12 @@ export default async function DetailBerkasMahasiswa({ params }: { params: Promis
           </div>
 
           <div className="card">
-            <div className="card-header fw-semibold">Riwayat versi</div>
+            <div className="card-header fw-semibold">{terpisah(b.jenis) ? 'Dokumen lainnya' : 'Riwayat versi'}</div>
             <div className="list-group list-group-flush">
               {lainnya.map((v) => (
                 <Link key={v.id} href={`/mahasiswa/berkas/${v.id}`} className={`list-group-item list-group-item-action${v.id === b.id ? ' list-group-item-primary' : ''}`}>
                   <div className="d-flex justify-content-between flex-wrap gap-2">
-                    <strong>Versi {v.versi}{v.id === b.id ? ' · sedang dibuka' : ''}</strong>
+                    <strong>{terpisah(b.jenis) ? v.fileName : `Versi ${v.versi}`}{v.id === b.id ? ' · sedang dibuka' : ''}</strong>
                     <StatusBadge s={v.status} />
                   </div>
                   <div className="small text-body-secondary">{tanggal(v.createdAt)}</div>

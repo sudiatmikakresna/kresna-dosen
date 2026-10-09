@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import type { Berkas } from '@/db';
-import { labelJenis, tanggal } from '@/lib/labels';
+import { labelJenis, labelJenisPendek, tanggal, terpisah } from '@/lib/labels';
 import { StatusBadge } from './StatusBadge';
 
 export function BerkasTable({ rows, hrefBase, revisiCount }: {
@@ -23,12 +23,12 @@ export function BerkasTable({ rows, hrefBase, revisiCount }: {
           {rows.map((b) => (
             <tr key={b.id}>
               <td>
-                <Link href={`${hrefBase}/${b.id}`} className="fw-semibold text-decoration-none">{labelJenis(b.jenis)}</Link>
+                <Link href={`${hrefBase}/${b.id}`} className="fw-semibold text-decoration-none">{terpisah(b.jenis) ? labelJenisPendek(b.jenis) : labelJenis(b.jenis)}</Link>
                 <div className="small text-body-secondary font-monospace">
                   {b.sumber === 'gdocs' ? 'Google Docs' : b.fileName}
                 </div>
               </td>
-              <td className="font-monospace">v{b.versi}</td>
+              <td className="font-monospace">{terpisah(b.jenis) ? '—' : `v${b.versi}`}</td>
               <td className="small">{tanggal(b.createdAt)}</td>
               {revisiCount && <td className="small">{revisiCount[b.id] ? `${revisiCount[b.id]} catatan` : '—'}</td>}
               <td><StatusBadge s={b.status} /></td>

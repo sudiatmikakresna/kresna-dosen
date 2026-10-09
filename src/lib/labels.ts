@@ -4,7 +4,30 @@ export const JENIS = [
   { id: 'bab3', label: 'Bab 3 · Metodologi' },
   { id: 'bab4', label: 'Bab 4 · Hasil dan Pembahasan' },
   { id: 'draf_lengkap', label: 'Draf lengkap' },
+  { id: 'lainnya', label: 'Dokumen lainnya · Lampiran, hasil penelitian, dll.' },
 ] as const;
+
+/** Jenis berkas yang tiap unggahannya dokumen tersendiri, bukan versi baru dari yang lama. */
+export const JENIS_TERPISAH = ['lainnya'];
+
+export const terpisah = (jenis: string) => JENIS_TERPISAH.includes(jenis);
+
+/** Ekstensi yang diterima: bab hanya PDF/DOCX, dokumen lainnya lebih luas. */
+export const MIME: Record<string, string> = {
+  pdf: 'application/pdf',
+  docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+  csv: 'text/csv',
+  zip: 'application/zip',
+  png: 'image/png',
+  jpg: 'image/jpeg',
+  jpeg: 'image/jpeg',
+};
+
+export function ekstensiDiizinkan(jenis: string) {
+  return terpisah(jenis) ? Object.keys(MIME) : ['pdf', 'docx'];
+}
 
 export const TAHAP = ['bab1', 'bab2', 'bab3', 'bab4'] as const;
 

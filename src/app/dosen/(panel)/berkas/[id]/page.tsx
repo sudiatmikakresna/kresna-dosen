@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { labelJenis, tanggal, waktu } from '@/lib/labels';
+import { labelJenis, labelJenisPendek, tanggal, terpisah, waktu } from '@/lib/labels';
 import { detailBerkas, versiSebelumnya } from '@/lib/service';
 import { Preview } from '@/components/Preview';
 import { StatusBadge } from '@/components/StatusBadge';
@@ -49,13 +49,13 @@ export default async function TinjauBerkas({ params }: { params: Promise<{ id: s
         <ol className="breadcrumb small">
           <li className="breadcrumb-item"><Link href="/dosen">Mahasiswa</Link></li>
           <li className="breadcrumb-item"><Link href={`/dosen/mahasiswa/${m.id}`}>{m.nama}</Link></li>
-          <li className="breadcrumb-item active" aria-current="page">{labelJenis(b.jenis)} v{b.versi}</li>
+          <li className="breadcrumb-item active" aria-current="page">{terpisah(b.jenis) ? b.fileName : `${labelJenis(b.jenis)} v${b.versi}`}</li>
         </ol>
       </nav>
 
       <div className="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-3">
         <div>
-          <h1 className="h3 mb-1">{labelJenis(b.jenis)} · versi {b.versi} <StatusBadge s={b.status} className="align-middle fs-6" /></h1>
+          <h1 className="h3 mb-1">{terpisah(b.jenis) ? `${labelJenisPendek(b.jenis)} · ${b.fileName}` : `${labelJenis(b.jenis)} · versi ${b.versi}`} <StatusBadge s={b.status} className="align-middle fs-6" /></h1>
           <div className="small text-body-secondary">
             {m.nama} · <span className="font-monospace">{m.nim}</span> · dikirim {waktu(b.createdAt)} · ID berkas <span className="font-monospace">{b.id}</span>
           </div>

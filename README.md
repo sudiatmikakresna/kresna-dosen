@@ -3,7 +3,7 @@
 Sistem bimbingan skripsi untuk dosen pembimbing:
 
 - Mahasiswa **daftar dengan NIM, nama, dan password**, lalu masuk ke dashboard.
-- Mahasiswa **mengunggah berkas** (PDF/DOCX hingga 20 MB) atau **mengirim link Google Docs**. Setiap kiriman menjadi versi baru dan **disimpan di Google Drive dosen**.
+- Mahasiswa **mengunggah berkas** per bab (PDF/DOCX hingga 20 MB), **dokumen lainnya** seperti lampiran dan data hasil penelitian (PDF, DOCX, XLSX, PPTX, CSV, ZIP, PNG/JPG), atau **mengirim link Google Docs**. Setiap kiriman menjadi versi baru dan **disimpan di Google Drive dosen**.
 - Mahasiswa membuka berkas untuk melihat **pratinjau dan revisi dari dosen**, lalu menandai revisi yang sudah diperbaiki.
 - Dosen menelusuri **kemajuan dan riwayat** setiap mahasiswa, meninjau berkas, dan mengirim revisi.
 - **Server MCP** di `/api/mcp` supaya agent (mis. Claude) bisa membaca berkas dan menambahkan catatan revisi sebagai draf.

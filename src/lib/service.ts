@@ -1,7 +1,7 @@
 import 'server-only';
 import { and, asc, desc, eq, inArray, lt, ne } from 'drizzle-orm';
 import { aktivitas, berkas, db, revisi, users, type Berkas, type Revisi } from '@/db';
-import { labelJenisPendek, TAHAP } from './labels';
+import { labelJenisPendek, TAHAP, terpisah } from './labels';
 
 export type StatusBerkas = Berkas['status'];
 
@@ -29,7 +29,10 @@ export async function simpanBerkasBaru(
     .orderBy(desc(berkas.versi));
   const versi = (sebelumnya[0]?.versi ?? 0) + 1;
 
-  const aktif = sebelumnya.filter((b) => b.status !== 'disetujui' && b.status !== 'digantikan').map((b) => b.id);
+  // Dokumen lainnya (lampiran, data, dll.) berdiri sendiri, jadi tidak menggantikan unggahan sebelumnya.
+  const aktif = terpisah(data.jenis)
+    ? []
+    : sebelumnya.filter((b) => b.status !== 'disetujui' && b.status !== 'digantikan').map((b) => b.id);
   if (aktif.length) {
     await db().update(berkas).set({ status: 'digantikan' }).where(inArray(berkas.id, aktif));
   }
@@ -38,7 +41,13 @@ export async function simpanBerkasBaru(
     .insert(berkas)
     .values({ mahasiswaId, versi, ...data })
     .returning();
-  await catatAktivitas(mahasiswaId, `Mengunggah ${labelJenisPendek(data.jenis)} versi ${versi}`, baru.id);
+  await catatAktivitas(
+    mahasiswaId,
+    terpisah(data.jenis)
+      ? `Mengunggah dokumen lainnya: ${data.fileName ?? 'berkas'}`
+      : `Mengunggah ${labelJenisPendek(data.jenis)} versi ${versi}`,
+    baru.id,
+  );
   return baru;
 }
 
@@ -124,6 +133,7 @@ export async function detailBerkas(id: number) {
 
 /** Versi-versi sebelumnya dari jenis berkas yang sama, beserta revisi yang sudah dikirim. */
 export async function versiSebelumnya(b: Pick<Berkas, 'mahasiswaId' | 'jenis' | 'versi'>) {
+  if (terpisah(b.jenis)) return [];
   const lama = await db()
     .select()
     .from(berkas)

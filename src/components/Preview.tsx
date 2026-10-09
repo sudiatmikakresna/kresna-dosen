@@ -21,7 +21,7 @@ export function Preview({ b, untuk }: { b: Berkas; untuk: 'dosen' | 'mahasiswa' 
   } else if (b.driveFileId && pdf && kecil) {
     src = `/api/berkas/${b.id}/file`;
   } else if (b.driveFileId && !pdf) {
-    pesan = 'Pratinjau DOCX hanya tersedia untuk dosen. Berkas tersimpan di Google Drive dosen.';
+    pesan = 'Pratinjau file ini hanya tersedia untuk dosen. Berkas tersimpan di Google Drive dosen.';
   } else if (b.driveFileId) {
     pesan = 'Berkas di atas 4 MB tidak bisa dipratinjau di sini. Berkas tetap tersimpan di Google Drive dosen.';
   }
