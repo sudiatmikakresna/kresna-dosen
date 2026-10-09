@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { labelJenisPendek, relatif, tanggal } from '@/lib/labels';
+import { labelJenisPendek, relatif, tanggal, TAHAP } from '@/lib/labels';
 import { daftarMahasiswa } from '@/lib/service';
 import { StatusBadge } from '@/components/StatusBadge';
 
@@ -78,7 +78,7 @@ export default async function DaftarMahasiswaPage({ searchParams }: { searchPara
             </thead>
             <tbody>
               {rows.map((m) => {
-                const pct = Math.round((m.tahapSelesai / 6) * 100);
+                const pct = Math.round((m.tahapSelesai / TAHAP.length) * 100);
                 const b = m.berkasTerakhir;
                 const perluTinjau = b && ['menunggu', 'draf'].includes(b.status);
                 return (
@@ -91,7 +91,7 @@ export default async function DaftarMahasiswaPage({ searchParams }: { searchPara
                       <div className="progress" role="progressbar" aria-label={`Kemajuan ${m.nama}`} aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100} style={{ height: 8 }}>
                         <div className="progress-bar" style={{ width: `${pct}%` }} />
                       </div>
-                      <div className="small text-body-secondary mt-1">{m.tahapSelesai}/6 tahap disetujui</div>
+                      <div className="small text-body-secondary mt-1">{m.tahapSelesai}/{TAHAP.length} tahap disetujui</div>
                     </td>
                     <td>{b ? <><div>{labelJenisPendek(b.jenis)} v{b.versi}</div><div className="small text-body-secondary">{tanggal(b.createdAt)}</div></> : <span className="text-body-secondary">—</span>}</td>
                     <td>{b ? <StatusBadge s={b.status} /> : <StatusBadge s="belum" />}</td>

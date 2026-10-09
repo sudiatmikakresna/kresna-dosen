@@ -29,7 +29,7 @@ export default async function RiwayatMahasiswa({ params }: { params: Promise<{ i
       <div className="card mb-4">
         <div className="card-header fw-semibold">Kemajuan per tahap</div>
         <div className="card-body">
-          <div className="row row-cols-2 row-cols-md-3 row-cols-lg-6 g-2">
+          <div className="row row-cols-2 row-cols-md-3 row-cols-lg-5 g-2">
             {tahap.map((t) => (
               <div className="col" key={t.jenis}>
                 <div className="border p-2 h-100">

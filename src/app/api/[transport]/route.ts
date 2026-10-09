@@ -2,7 +2,7 @@ import { createMcpHandler, withMcpAuth } from 'mcp-handler';
 import { eq } from 'drizzle-orm';
 import { z } from 'zod';
 import { db, users } from '@/db';
-import { labelJenis } from '@/lib/labels';
+import { labelJenis, TAHAP } from '@/lib/labels';
 import { verifikasiToken } from '@/lib/mcp-token';
 import {
   aktivitasMahasiswa,
@@ -39,7 +39,7 @@ const handler = createMcpHandler(
             nama: m.nama,
             nim: m.nim,
             judul_skripsi: m.judulSkripsi,
-            tahap_disetujui: `${m.tahapSelesai}/6`,
+            tahap_disetujui: `${m.tahapSelesai}/${TAHAP.length}`,
             tahap: m.tahap,
             berkas_terakhir: m.berkasTerakhir && {
               berkas_id: m.berkasTerakhir.id,
