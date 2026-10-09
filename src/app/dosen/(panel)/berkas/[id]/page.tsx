@@ -73,7 +73,7 @@ export default async function TinjauBerkas({ params }: { params: Promise<{ id: s
 
       <div className="row g-4">
         <div className="col-xl-6">
-          <Preview b={b} />
+          <Preview b={b} untuk="dosen" />
           {lama.length > 0 && (
             <div className="card mt-4">
               <div className="card-header fw-semibold">Revisi pada versi sebelumnya</div>

@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { db, users } from '@/db';
 import { labelJenis, TAHAP } from '@/lib/labels';
 import { verifikasiToken } from '@/lib/mcp-token';
+import { driveViewUrl } from '@/lib/google';
 import {
   aktivitasMahasiswa,
   antrianReview,
@@ -72,7 +73,7 @@ const handler = createMcpHandler(
       {
         title: 'Baca berkas',
         description:
-          'Ambil metadata dan isi teks berkas (per halaman untuk PDF), catatan dari mahasiswa, catatan revisi yang sudah ada, dan revisi pada versi sebelumnya. Gunakan sebelum menulis revisi.',
+          'Ambil metadata dan isi teks berkas (per halaman untuk PDF), catatan dari mahasiswa, catatan revisi yang sudah ada, dan revisi pada versi sebelumnya. Berkas aslinya ada di Google Drive dosen (drive_file_id / url_google_drive); buka lewat konektor Google Drive bila perlu melihat gambar atau tabel. Gunakan sebelum menulis revisi.',
         inputSchema: {
           berkas_id: z.number().int().describe('ID berkas'),
           maks_karakter: z.number().int().min(1000).max(400000).optional().describe('Batas panjang teks (bawaan 120000)'),
@@ -91,7 +92,9 @@ const handler = createMcpHandler(
           versi: d.berkas.versi,
           status: d.berkas.status,
           sumber: d.berkas.sumber,
-          url_berkas: d.berkas.fileUrl,
+          nama_file: d.berkas.fileName,
+          drive_file_id: d.berkas.driveFileId,
+          url_google_drive: d.berkas.driveFileId ? driveViewUrl(d.berkas.driveFileId) : null,
           url_google_docs: d.berkas.gdocsUrl,
           catatan_mahasiswa: d.berkas.catatan,
           ringkasan: d.berkas.ringkasan,
@@ -100,7 +103,7 @@ const handler = createMcpHandler(
             versi: l.versi,
             revisi: l.revisi.map((r) => ({ lokasi: r.lokasi, jenis: r.jenis, teks: r.teks, ditandai_selesai_mahasiswa: r.selesai })),
           })),
-          teks: teks ? teks.slice(0, batas) : 'Teks berkas tidak tersedia (gagal diekstrak). Buka url_berkas untuk membaca.',
+          teks: teks ? teks.slice(0, batas) : 'Teks berkas tidak tersedia (gagal diekstrak). Buka url_google_drive untuk membaca.',
           teks_terpotong: !!teks && teks.length > batas,
         });
       },

@@ -16,7 +16,6 @@
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "1.26.0",
-    "@vercel/blob": "^2.8.1",
     "@vercel/functions": "^3.9.11",
     "bcryptjs": "^3.0.3",
     "bootstrap": "^5.3.8",

@@ -6,6 +6,7 @@ import { z } from 'zod';
 import { db, mcpTokens } from '@/db';
 import { wajibDosen } from '@/lib/auth';
 import { buatToken } from '@/lib/mcp-token';
+import { putuskan } from '@/lib/google';
 import { kirimRevisi, setRingkasan, tambahRevisi, ubahRevisi } from '@/lib/service';
 
 function segarkan(berkasId: number) {
@@ -73,4 +74,10 @@ export async function cabutToken(id: number) {
     .set({ revokedAt: new Date() })
     .where(and(eq(mcpTokens.id, id), eq(mcpTokens.dosenId, dosen.id)));
   revalidatePath('/dosen/mcp');
+}
+
+export async function putuskanDrive() {
+  const dosen = await wajibDosen();
+  await putuskan(dosen.id);
+  revalidatePath('/dosen/drive');
 }

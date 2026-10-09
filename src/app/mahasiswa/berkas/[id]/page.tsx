@@ -43,7 +43,7 @@ export default async function DetailBerkasMahasiswa({ params }: { params: Promis
       </div>
 
       <div className="row g-4">
-        <div className="col-lg-6"><Preview b={b} /></div>
+        <div className="col-lg-6"><Preview b={b} untuk="mahasiswa" /></div>
         <div className="col-lg-6">
           <div className="card mb-4">
             <div className="card-header fw-semibold">Revisi dosen <span className="badge text-bg-secondary">{terkirim.length}</span></div>

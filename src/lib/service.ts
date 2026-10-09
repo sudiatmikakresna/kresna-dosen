@@ -14,8 +14,9 @@ export async function simpanBerkasBaru(
   data: {
     jenis: string;
     sumber: 'upload' | 'gdocs';
-    fileUrl?: string | null;
+    driveFileId?: string | null;
     fileName?: string | null;
+    ukuran?: number | null;
     gdocsUrl?: string | null;
     catatan?: string | null;
     teks?: string | null;

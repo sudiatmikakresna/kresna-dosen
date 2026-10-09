@@ -8,6 +8,7 @@ export const users = pgTable('users', {
   nama: text('nama').notNull(),
   passwordHash: text('password_hash').notNull(),
   judulSkripsi: text('judul_skripsi'),
+  driveFolderId: text('drive_folder_id'),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 });
 
@@ -21,8 +22,11 @@ export const berkas = pgTable(
     jenis: text('jenis').notNull(),
     versi: integer('versi').notNull(),
     sumber: text('sumber', { enum: ['upload', 'gdocs'] }).notNull(),
+    /** Tidak dipakai lagi sejak berkas disimpan di Google Drive. */
     fileUrl: text('file_url'),
     fileName: text('file_name'),
+    driveFileId: text('drive_file_id'),
+    ukuran: integer('ukuran'),
     gdocsUrl: text('gdocs_url'),
     catatan: text('catatan'),
     teks: text('teks'),
@@ -76,6 +80,34 @@ export const mcpTokens = pgTable('mcp_tokens', {
   tokenHash: text('token_hash').notNull().unique(),
   lastUsedAt: timestamp('last_used_at', { withTimezone: true }),
   revokedAt: timestamp('revoked_at', { withTimezone: true }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+/** Akun Google Drive dosen tempat semua berkas disimpan. */
+export const googleAkun = pgTable('google_akun', {
+  id: serial('id').primaryKey(),
+  dosenId: integer('dosen_id')
+    .notNull()
+    .unique()
+    .references(() => users.id, { onDelete: 'cascade' }),
+  email: text('email').notNull(),
+  refreshTokenEnc: text('refresh_token_enc').notNull(),
+  rootFolderId: text('root_folder_id').notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+/** Sesi unggah bertahap (resumable) ke Google Drive. */
+export const uploadSesi = pgTable('upload_sesi', {
+  id: text('id').primaryKey(),
+  mahasiswaId: integer('mahasiswa_id')
+    .notNull()
+    .references(() => users.id, { onDelete: 'cascade' }),
+  jenis: text('jenis').notNull(),
+  fileName: text('file_name').notNull(),
+  mime: text('mime').notNull(),
+  ukuran: integer('ukuran').notNull(),
+  uri: text('uri').notNull(),
+  driveFileId: text('drive_file_id'),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 });
 
