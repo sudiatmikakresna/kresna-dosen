@@ -91,6 +91,33 @@ export async function kirimTelegram(html: string) {
   return true;
 }
 
+/** Notifikasi setiap kali revisi dikirim ke mahasiswa (dari web atau MCP). */
+export async function notifRevisiTerkirim(
+  b: Berkas,
+  keputusan: 'perlu_revisi' | 'disetujui',
+  wajib: number,
+  saran: number,
+  oleh: 'web' | 'mcp',
+) {
+  try {
+    if (!telegramSiap()) return;
+    const [m] = await db().select().from(users).where(eq(users.id, b.mahasiswaId)).limit(1);
+    if (!m) return;
+    const app = (process.env.APP_URL ?? '').replace(/\/$/, '');
+    const judul = terpisah(b.jenis) ? `${labelJenis(b.jenis).split(' · ')[0]}: ${b.fileName ?? 'berkas'}` : `${labelJenis(b.jenis)}, versi ${b.versi}`;
+    const baris = [
+      keputusan === 'disetujui' ? '🎓 <b>Bab disetujui</b>' : '📝 <b>Revisi dikirim</b>',
+      `<b>${esc(m.nama)}</b> (${esc(m.nim ?? '-')})`,
+      esc(judul),
+      `Catatan: ${wajib} wajib, ${saran} saran · ${oleh === 'mcp' ? 'lewat agent (MCP)' : 'lewat web'}`,
+    ];
+    if (app) baris.push('', `<a href="${app}/dosen/berkas/${b.id}">Lihat di aplikasi</a>`);
+    await kirimTelegram(baris.join('\n'));
+  } catch (err) {
+    console.error('Gagal mengirim notifikasi Telegram', err);
+  }
+}
+
 /** Notifikasi ke dosen saat mahasiswa mengirim berkas baru. Gagal kirim tidak memengaruhi unggahan. */
 export async function notifBerkasBaru(b: Berkas) {
   try {

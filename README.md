@@ -69,6 +69,7 @@ Tool yang tersedia:
 | `ubah_revisi` | Ubah teks/lokasi/jenis, atau buang catatan |
 | `set_ringkasan` | Isi ringkasan untuk mahasiswa |
 | `kirim_revisi` | Kirim draf ke mahasiswa dengan keputusan `perlu_revisi`/`disetujui` |
+| `kirim_laporan_telegram` | Kirim laporan teks ke Telegram dosen (mis. ringkasan review harian) |
 
 Catatan dari MCP berstatus draf dan diberi label **via MCP** di halaman tinjau. Mahasiswa baru melihatnya setelah dikirim.
 
@@ -96,6 +97,9 @@ catatan mahasiswa, serta tautan ke halaman tinjau dan file di Google Drive.
 1. Buat bot lewat **@BotFather** (`/newbot`), salin tokennya ke env `TELEGRAM_BOT_TOKEN`, lalu redeploy.
 2. Buka bot di Telegram dan tekan **Start**.
 3. Panel dosen → **Telegram** → **Deteksi chat Telegram**. Chat ID disimpan di database, tidak perlu redeploy.
+
+Bot juga mengirim pesan setiap kali revisi dikirim ke mahasiswa (dari web atau MCP), berisi keputusan dan
+jumlah catatan, serta laporan ringkas di akhir review harian otomatis.
 
 Notifikasi dikirim di latar belakang (`waitUntil`), jadi unggahan tidak melambat dan tetap berhasil bila
 Telegram sedang gangguan. Tautan "Tinjau di aplikasi" memakai `APP_URL`.

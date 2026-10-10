@@ -3,7 +3,7 @@ import { waitUntil } from '@vercel/functions';
 import { and, asc, desc, eq, inArray, lt, ne } from 'drizzle-orm';
 import { aktivitas, berkas, db, revisi, users, type Berkas, type Revisi } from '@/db';
 import { labelJenisPendek, TAHAP, terpisah } from './labels';
-import { notifBerkasBaru } from './telegram';
+import { notifBerkasBaru, notifRevisiTerkirim } from './telegram';
 
 export type StatusBerkas = Berkas['status'];
 
@@ -182,14 +182,19 @@ export async function setRingkasan(berkasId: number, ringkasan: string) {
   await db().update(berkas).set({ ringkasan }).where(eq(berkas.id, berkasId));
 }
 
-export async function kirimRevisi(berkasId: number, keputusan: 'perlu_revisi' | 'disetujui', ringkasan?: string) {
+export async function kirimRevisi(
+  berkasId: number,
+  keputusan: 'perlu_revisi' | 'disetujui',
+  ringkasan?: string,
+  oleh: 'web' | 'mcp' = 'web',
+) {
   const [b] = await db().select().from(berkas).where(eq(berkas.id, berkasId)).limit(1);
   if (!b) throw new Error(`Berkas ${berkasId} tidak ditemukan.`);
   const terkirim = await db()
     .update(revisi)
     .set({ status: 'dikirim' })
     .where(and(eq(revisi.berkasId, berkasId), eq(revisi.status, 'draf')))
-    .returning({ id: revisi.id });
+    .returning({ id: revisi.id, jenis: revisi.jenis });
   await db()
     .update(berkas)
     .set({ status: keputusan, keputusanAt: new Date(), ...(ringkasan !== undefined ? { ringkasan } : {}) })
@@ -202,6 +207,8 @@ export async function kirimRevisi(berkasId: number, keputusan: 'perlu_revisi' | 
       : `Dosen memberi ${terkirim.length} catatan revisi pada ${nama}`,
     b.id,
   );
+  const wajib = terkirim.filter((r) => r.jenis === 'wajib').length;
+  waitUntil(notifRevisiTerkirim(b, keputusan, wajib, terkirim.length - wajib, oleh));
   return { terkirim: terkirim.length, status: keputusan };
 }
 

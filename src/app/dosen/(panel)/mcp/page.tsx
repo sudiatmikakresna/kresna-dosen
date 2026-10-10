@@ -17,6 +17,7 @@ const TOOLS: [string, string][] = [
   ['ubah_revisi', 'Mengubah teks/lokasi/jenis catatan, atau membuangnya'],
   ['set_ringkasan', 'Mengisi ringkasan untuk mahasiswa'],
   ['kirim_revisi', 'Mengirim draf ke mahasiswa dengan keputusan perlu revisi atau disetujui'],
+  ['kirim_laporan_telegram', 'Mengirim laporan teks ke Telegram dosen, mis. ringkasan review harian'],
 ];
 
 export default async function McpPage() {

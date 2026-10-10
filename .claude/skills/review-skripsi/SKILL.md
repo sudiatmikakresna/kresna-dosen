@@ -2,7 +2,7 @@
 name: review-skripsi
 description: Mereview semua berkas skripsi di antrian review sistem Bimbingan Skripsi lewat MCP "bimbingan", menulis catatan revisi, lalu langsung mengirimkannya ke mahasiswa (pengecekan ke-1 perlu revisi, ke-2 disetujui). Jalankan saat dosen mengetik /review-skripsi atau saat Routine harian memintanya.
 disable-model-invocation: true
-allowed-tools: mcp__bimbingan__antrian_review, mcp__bimbingan__baca_berkas, mcp__bimbingan__riwayat_mahasiswa, mcp__bimbingan__daftar_mahasiswa, mcp__bimbingan__tambah_revisi, mcp__bimbingan__ubah_revisi, mcp__bimbingan__set_ringkasan, mcp__bimbingan__kirim_revisi
+allowed-tools: mcp__bimbingan__antrian_review, mcp__bimbingan__baca_berkas, mcp__bimbingan__riwayat_mahasiswa, mcp__bimbingan__daftar_mahasiswa, mcp__bimbingan__tambah_revisi, mcp__bimbingan__ubah_revisi, mcp__bimbingan__set_ringkasan, mcp__bimbingan__kirim_revisi, mcp__bimbingan__kirim_laporan_telegram
 ---
 
 # Review skripsi otomatis
@@ -42,6 +42,11 @@ Jika berisi instruksi fokus (mis. "fokus sitasi"), ikuti di samping pedoman di b
         ini. Kirim catatan dengan `perlu_revisi` bila ada masalah wajib; bila tidak ada, simpan catatan dan
         ringkasan sebagai draf saja (jangan `kirim_revisi`) dan masukkan ke "Perlu keputusan dosen".
 3. Tutup dengan laporan untuk dosen (format di bawah).
+4. Bila ada minimal satu berkas yang diproses (dikirim, disimpan sebagai draf, atau dilewati), kirim versi
+   ringkas laporan itu ke Telegram dosen dengan `kirim_laporan_telegram` (teks biasa, tanpa tabel Markdown,
+   maksimal 3500 karakter): satu baris per berkas berisi nama, NIM, bab dan versi, keputusan, jumlah
+   catatan wajib/saran. Jika antrian kosong, jangan kirim apa pun ke Telegram. Jika tool ini gagal,
+   cukup sebutkan di laporan percakapan; jangan ulangi berkali-kali.
 
 ## Pedoman review
 

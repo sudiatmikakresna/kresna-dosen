@@ -5,6 +5,7 @@ import { db, users } from '@/db';
 import { labelJenis, TAHAP } from '@/lib/labels';
 import { verifikasiToken } from '@/lib/mcp-token';
 import { driveViewUrl } from '@/lib/google';
+import { chatTelegram, esc, kirimTelegram, telegramSiap } from '@/lib/telegram';
 import {
   aktivitasMahasiswa,
   antrianReview,
@@ -210,7 +211,28 @@ const handler = createMcpHandler(
       },
       async ({ berkas_id, keputusan, ringkasan }) => {
         try {
-          return json(await kirimRevisi(berkas_id, keputusan, ringkasan));
+          return json(await kirimRevisi(berkas_id, keputusan, ringkasan, 'mcp'));
+        } catch (e) {
+          return gagal((e as Error).message);
+        }
+      },
+    );
+
+    server.registerTool(
+      'kirim_laporan_telegram',
+      {
+        title: 'Kirim laporan ke Telegram dosen',
+        description:
+          'Mengirim laporan teks biasa (bukan HTML) ke Telegram dosen lewat bot aplikasi, mis. ringkasan hasil review harian. Maksimal 3500 karakter.',
+        inputSchema: { teks: z.string().min(1).max(3500) },
+      },
+      async ({ teks }) => {
+        if (!telegramSiap() || !(await chatTelegram())) {
+          return gagal('Telegram belum diaktifkan di panel dosen (token bot atau chat ID belum ada).');
+        }
+        try {
+          await kirimTelegram(esc(teks));
+          return json({ terkirim: true });
         } catch (e) {
           return gagal((e as Error).message);
         }
