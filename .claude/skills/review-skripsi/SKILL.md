@@ -55,7 +55,8 @@ Jika berisi instruksi fokus (mis. "fokus sitasi"), ikuti di samping pedoman di b
    Catatan lengkap ada di aplikasi: menu *Berkas & Revisi*.
    ```
    Untuk Dokumen lainnya, tulis "Dokumen lainnya: <nama file>" sebagai pengganti bab dan versi. Bila tidak ada berkas
-   yang dikirim (antrian kosong atau semua dilewati), jangan kirim apa pun ke grup. Jika tool ini gagal (mis. laptop
+   yang dicek dan dikirim (antrian kosong atau semua dilewati), **jangan panggil tool ini sama sekali**; server juga
+   menolaknya. Jika tool ini gagal (mis. laptop
    WAHA mati), catat errornya untuk laporan; jangan ulangi berkali-kali.
 5. Kirim versi ringkas laporan itu ke Telegram dosen dengan `kirim_laporan_telegram` (teks biasa, tanpa
    tabel Markdown, maksimal 3500 karakter): baris pembuka "Review harian selesai", lalu satu baris per berkas
