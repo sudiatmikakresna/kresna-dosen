@@ -20,6 +20,10 @@ services:
     command: tunnel --no-autoupdate run
     environment:
       TUNNEL_TOKEN: ${CLOUDFLARE_TUNNEL_TOKEN:?Isi CLOUDFLARE_TUNNEL_TOKEN di waha/.env}
+    # Supaya tunnel yang sama juga bisa membuka aplikasi lain di laptop (mis. server bengkel)
+    # lewat http://host.docker.internal:<port>. Di Docker Desktop baris ini tidak wajib, di Linux wajib.
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     depends_on: [waha]
 
   # Tunnel cepat tanpa domain (alamat *.trycloudflare.com berganti tiap restart).

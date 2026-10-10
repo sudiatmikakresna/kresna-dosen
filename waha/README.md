@@ -54,6 +54,22 @@ harus diperbarui lagi. Pakai pilihan A untuk pemakaian sehari-hari.
 
 Setelah itu setiap `/review-skripsi` dan review harian otomatis mengumumkan hasilnya ke grup.
 
+## Memakai tunnel yang sama untuk aplikasi lain (mis. server bengkel)
+
+Satu tunnel bisa membuka beberapa aplikasi; tidak perlu token baru.
+
+1. Jalankan aplikasinya di laptop dan catat port-nya, mis. server bengkel di port `8080`.
+   Pastikan aplikasi mendengarkan di `0.0.0.0` (atau semua interface), bukan hanya `127.0.0.1`,
+   supaya bisa dijangkau dari container `cloudflared`.
+2. Cloudflare dashboard → Zero Trust → Networks → Tunnels → tunnel `waha` → **Public Hostname** → Add:
+   - subdomain `bengkel`, domain Anda
+   - Service `HTTP` → `host.docker.internal:8080`
+     (jika aplikasinya service di `docker-compose.yml` ini, pakai `<nama-service>:<port>`)
+3. Tidak perlu restart: hostname baru langsung aktif. Cek dengan `curl https://bengkel.<domain-anda>/`.
+
+Tunnel cepat (`--profile quick`) hanya membuka satu alamat yang berganti tiap restart, jadi tidak cocok untuk
+alamat yang ditulis permanen, seperti `BENGKEL_URL` di repo tugas mahasiswa.
+
 ## Catatan
 
 - Tunnel membuat dashboard dan API WAHA bisa diakses dari internet. Semua permintaan API tetap wajib
