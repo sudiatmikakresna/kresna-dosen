@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "bimbingan": {
+      "type": "http",
+      "url": "https://kresna-dosen.vercel.app/api/mcp",
+      "headers": {
+        "Authorization": "Bearer ${BIMBINGAN_MCP_TOKEN}"
+      }
+    }
+  }
+}
