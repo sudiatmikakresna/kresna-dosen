@@ -3,12 +3,13 @@
 import { and, eq } from 'drizzle-orm';
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
-import { db, mcpTokens } from '@/db';
+import { db, mcpTokens, waGrup } from '@/db';
 import { wajibDosen } from '@/lib/auth';
 import { buatToken } from '@/lib/mcp-token';
 import { putuskan } from '@/lib/google';
 import { deteksiChat, esc, kirimTelegram, putuskanTelegram, simpanChatManual } from '@/lib/telegram';
 import { redirect } from 'next/navigation';
+import { KUNCI_AKTIF, KUNCI_PENGETAHUAN, MAKS_PENGETAHUAN, simpanPengaturan } from '@/lib/wa-bot';
 import { kirimRevisi, setRingkasan, tambahRevisi, ubahRevisi } from '@/lib/service';
 
 function segarkan(berkasId: number) {
@@ -130,4 +131,30 @@ export async function simpanChatTelegram(form: FormData) {
   }
   revalidatePath('/dosen/telegram');
   redirect(`/dosen/telegram?${q}`);
+}
+
+export async function izinkanGrupWa(chatId: string, diizinkan: boolean) {
+  await wajibDosen();
+  await db().update(waGrup).set({ diizinkan }).where(eq(waGrup.chatId, chatId));
+  revalidatePath('/dosen/whatsapp');
+}
+
+export async function hapusGrupWa(chatId: string) {
+  await wajibDosen();
+  await db().delete(waGrup).where(eq(waGrup.chatId, chatId));
+  revalidatePath('/dosen/whatsapp');
+}
+
+export async function aturBotWa(aktif: boolean) {
+  await wajibDosen();
+  await simpanPengaturan(KUNCI_AKTIF, aktif ? '1' : '0');
+  revalidatePath('/dosen/whatsapp');
+}
+
+export async function simpanPengetahuanWa(form: FormData) {
+  await wajibDosen();
+  const teks = String(form.get('pengetahuan') ?? '').slice(0, MAKS_PENGETAHUAN);
+  await simpanPengaturan(KUNCI_PENGETAHUAN, teks);
+  revalidatePath('/dosen/whatsapp');
+  redirect('/dosen/whatsapp?disimpan=1');
 }

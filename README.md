@@ -104,6 +104,22 @@ jumlah catatan, serta laporan ringkas di akhir review harian otomatis.
 Notifikasi dikirim di latar belakang (`waitUntil`), jadi unggahan tidak melambat dan tetap berhasil bila
 Telegram sedang gangguan. Tautan "Tinjau di aplikasi" memakai `APP_URL`.
 
+## Bot WhatsApp grup
+
+Mahasiswa bertanya di grup WhatsApp dengan `/tanya ...`, dengan menyebut nomor bot, atau dengan membalas pesan bot.
+Claude (`claude-opus-5-5`, effort rendah) menjawab di grup memakai panduan aplikasi dan informasi yang dosen isi di
+**Panel dosen → WhatsApp**. Pertanyaan yang perlu keputusan dosen diteruskan ke Telegram.
+
+- WhatsApp terhubung lewat WAHA (engine GOWS) di laptop dosen, dibuka ke internet dengan Cloudflare Tunnel.
+  Langkah lengkap ada di [`waha/README.md`](waha/README.md).
+- Environment variable Vercel: `WAHA_URL`, `WAHA_API_KEY`, `WAHA_SESSION` (opsional, default `default`),
+  `WA_WEBHOOK_SECRET` (sama dengan `WHATSAPP_HOOK_HMAC_KEY` di WAHA), dan `ANTHROPIC_API_KEY`.
+- Webhook `/api/wa/webhook` hanya menerima event bertanda tangan HMAC-SHA512 dari WAHA.
+- Bot hanya menjawab di grup yang diizinkan dosen, maksimal 5 pertanyaan per orang per 10 menit dan 150 per grup
+  per hari. Bot tidak punya akses ke berkas atau revisi mahasiswa.
+- Permintaan ke Claude memakai fallback server-side (`fallbacks: "default"`), jadi bila model utama menolak,
+  model cadangan menjawab dalam panggilan yang sama.
+
 ## Google Docs
 
 Mahasiswa harus mengatur berbagi ke *"Siapa saja yang memiliki link – Pelihat"*. Saat dikirim, sistem menyimpan **salinan PDF ke Google Drive dosen** dan teks dokumen sebagai versi tersebut, jadi revisi tidak bergeser walaupun dokumen asli terus diedit. Pratinjau menampilkan dokumen langsung, dengan tautan ke salinan PDF.

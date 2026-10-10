@@ -1,5 +1,3 @@
-# WAHA (WhatsApp HTTP API) dengan engine GOWS, untuk dijalankan di komputer lokal.
-# Jalankan dari folder ini: docker compose up -d
 services:
   waha:
     image: devlikeapro/waha:gows
@@ -9,8 +7,27 @@ services:
     environment:
       WHATSAPP_DEFAULT_ENGINE: GOWS
     ports:
-      # Hanya bisa diakses dari komputer ini. Ganti ke "3000:3000" bila perlu diakses dari jaringan lain.
       - "127.0.0.1:3000:3000"
     volumes:
-      # Data login WhatsApp tersimpan di sini, jadi tidak perlu scan QR ulang setelah restart.
       - ./sessions:/app/.sessions
+
+  # Tunnel tetap (butuh domain di Cloudflare). Jalankan: docker compose --profile tunnel up -d
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: waha-tunnel
+    restart: unless-stopped
+    profiles: [tunnel]
+    command: tunnel --no-autoupdate run
+    environment:
+      TUNNEL_TOKEN: ${CLOUDFLARE_TUNNEL_TOKEN:?Isi CLOUDFLARE_TUNNEL_TOKEN di waha/.env}
+    depends_on: [waha]
+
+  # Tunnel cepat tanpa domain (alamat *.trycloudflare.com berganti tiap restart).
+  # Jalankan: docker compose --profile quick up -d, lalu lihat alamatnya: docker compose logs quick-tunnel
+  quick-tunnel:
+    image: cloudflare/cloudflared:latest
+    container_name: waha-quick-tunnel
+    restart: unless-stopped
+    profiles: [quick]
+    command: tunnel --no-autoupdate --url http://waha:3000
+    depends_on: [waha]

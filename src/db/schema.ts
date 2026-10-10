@@ -121,3 +121,33 @@ export const pengaturan = pgTable('pengaturan', {
   nilai: text('nilai').notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 });
+
+/** Grup WhatsApp yang pernah memanggil bot. Bot hanya menjawab di grup yang diizinkan dosen. */
+export const waGrup = pgTable('wa_grup', {
+  chatId: text('chat_id').primaryKey(),
+  nama: text('nama'),
+  diizinkan: boolean('diizinkan').notNull().default(false),
+  terakhirAt: timestamp('terakhir_at', { withTimezone: true }).notNull().defaultNow(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+/** Log pertanyaan ke bot WhatsApp. messageId unik mencegah jawaban ganda saat WAHA mengulang webhook. */
+export const waTanya = pgTable(
+  'wa_tanya',
+  {
+    id: serial('id').primaryKey(),
+    messageId: text('message_id').notNull().unique(),
+    chatId: text('chat_id').notNull(),
+    pengirim: text('pengirim').notNull(),
+    namaPengirim: text('nama_pengirim'),
+    pertanyaan: text('pertanyaan').notNull(),
+    jawaban: text('jawaban'),
+    status: text('status', { enum: ['diproses', 'dijawab', 'diabaikan', 'dibatasi', 'gagal'] }).notNull().default('diproses'),
+    alasan: text('alasan'),
+    perluDosen: boolean('perlu_dosen').notNull().default(false),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index('wa_tanya_pengirim_idx').on(t.pengirim, t.createdAt), index('wa_tanya_chat_idx').on(t.chatId, t.createdAt)],
+);
+
+export type WaTanya = typeof waTanya.$inferSelect;
