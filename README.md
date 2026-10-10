@@ -104,21 +104,17 @@ jumlah catatan, serta laporan ringkas di akhir review harian otomatis.
 Notifikasi dikirim di latar belakang (`waitUntil`), jadi unggahan tidak melambat dan tetap berhasil bila
 Telegram sedang gangguan. Tautan "Tinjau di aplikasi" memakai `APP_URL`.
 
-## Bot WhatsApp grup
+## Laporan ke grup WhatsApp
 
-Mahasiswa bertanya di grup WhatsApp dengan `/tanya ...`, dengan menyebut nomor bot, atau dengan membalas pesan bot.
-Claude (`claude-opus-5-5`, effort rendah) menjawab di grup memakai panduan aplikasi dan informasi yang dosen isi di
-**Panel dosen → WhatsApp**. Pertanyaan yang perlu keputusan dosen diteruskan ke Telegram.
+Setiap kali `/review-skripsi` (atau Routine review harian) mengirim revisi, ringkasannya diumumkan ke grup
+WhatsApp mahasiswa lewat tool MCP `kirim_laporan_whatsapp`: nama, bab dan versi, serta keputusan. NIM dan isi catatan
+tidak dikirim ke grup. Alurnya satu arah; bot tidak membaca atau menjawab pesan grup.
 
 - WhatsApp terhubung lewat WAHA (engine GOWS) di laptop dosen, dibuka ke internet dengan Cloudflare Tunnel.
   Langkah lengkap ada di [`waha/README.md`](waha/README.md).
-- Environment variable Vercel: `WAHA_URL`, `WAHA_API_KEY`, `WAHA_SESSION` (opsional, default `default`),
-  `WA_WEBHOOK_SECRET` (sama dengan `WHATSAPP_HOOK_HMAC_KEY` di WAHA), dan `ANTHROPIC_API_KEY`.
-- Webhook `/api/wa/webhook` hanya menerima event bertanda tangan HMAC-SHA512 dari WAHA.
-- Bot hanya menjawab di grup yang diizinkan dosen, maksimal 5 pertanyaan per orang per 10 menit dan 150 per grup
-  per hari. Bot tidak punya akses ke berkas atau revisi mahasiswa.
-- Permintaan ke Claude memakai fallback server-side (`fallbacks: "default"`), jadi bila model utama menolak,
-  model cadangan menjawab dalam panggilan yang sama.
+- Environment variable Vercel: `WAHA_URL` (alamat tunnel), `WAHA_API_KEY`, dan `WAHA_SESSION` (opsional, default `default`).
+- Pilih grup tujuan di **Panel dosen → WhatsApp**. Laporan hanya terkirim saat laptop, WAHA, dan tunnel menyala;
+  bila gagal, statusnya tercantum di laporan Telegram.
 
 ## Google Docs
 

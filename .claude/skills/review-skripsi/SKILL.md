@@ -1,8 +1,8 @@
 ---
 name: review-skripsi
-description: Mereview semua berkas skripsi di antrian review sistem Bimbingan Skripsi lewat MCP "bimbingan", menulis catatan revisi, lalu langsung mengirimkannya ke mahasiswa (pengecekan ke-1 perlu revisi, ke-2 disetujui). Jalankan saat dosen mengetik /review-skripsi atau saat Routine harian memintanya.
+description: Mereview semua berkas skripsi di antrian review sistem Bimbingan Skripsi lewat MCP "bimbingan", menulis catatan revisi, lalu langsung mengirimkannya ke mahasiswa (pengecekan ke-1 perlu revisi, ke-2 disetujui) dan mengumumkan hasilnya di grup WhatsApp. Jalankan saat dosen mengetik /review-skripsi atau saat Routine harian memintanya.
 disable-model-invocation: true
-allowed-tools: mcp__bimbingan__antrian_review, mcp__bimbingan__baca_berkas, mcp__bimbingan__riwayat_mahasiswa, mcp__bimbingan__daftar_mahasiswa, mcp__bimbingan__tambah_revisi, mcp__bimbingan__ubah_revisi, mcp__bimbingan__set_ringkasan, mcp__bimbingan__kirim_revisi, mcp__bimbingan__kirim_laporan_telegram
+allowed-tools: mcp__bimbingan__antrian_review, mcp__bimbingan__baca_berkas, mcp__bimbingan__riwayat_mahasiswa, mcp__bimbingan__daftar_mahasiswa, mcp__bimbingan__tambah_revisi, mcp__bimbingan__ubah_revisi, mcp__bimbingan__set_ringkasan, mcp__bimbingan__kirim_revisi, mcp__bimbingan__kirim_laporan_telegram, mcp__bimbingan__kirim_laporan_whatsapp
 ---
 
 # Review skripsi otomatis
@@ -43,10 +43,25 @@ Jika berisi instruksi fokus (mis. "fokus sitasi"), ikuti di samping pedoman di b
         ini. Kirim catatan dengan `perlu_revisi` bila ada masalah wajib; bila tidak ada, simpan catatan dan
         ringkasan sebagai draf saja (jangan `kirim_revisi`) dan masukkan ke "Perlu keputusan dosen".
 3. Tutup dengan laporan untuk dosen (format di bawah).
-4. Kirim versi ringkas laporan itu ke Telegram dosen dengan `kirim_laporan_telegram` (teks biasa, tanpa
+4. Jika ada minimal satu berkas yang revisinya **dikirim** (`kirim_revisi`) pada run ini, umumkan di grup WhatsApp
+   mahasiswa dengan `kirim_laporan_whatsapp`. Grup dibaca semua mahasiswa, jadi **jangan** cantumkan NIM, jumlah atau
+   isi catatan, maupun berkas yang dilewati atau masih draf. Format:
+   ```
+   📋 *Hasil review berkas skripsi* — <tanggal, mis. Sabtu, 10 Oktober 2026>
+
+   - <Nama> · <Bab N> v<versi> · Perlu revisi
+   - <Nama> · <Bab N> v<versi> · Disetujui ✅
+
+   Catatan lengkap ada di aplikasi: menu *Berkas & Revisi*.
+   ```
+   Untuk Dokumen lainnya, tulis "Dokumen lainnya: <nama file>" sebagai pengganti bab dan versi. Bila tidak ada berkas
+   yang dikirim (antrian kosong atau semua dilewati), jangan kirim apa pun ke grup. Jika tool ini gagal (mis. laptop
+   WAHA mati), catat errornya untuk laporan; jangan ulangi berkali-kali.
+5. Kirim versi ringkas laporan itu ke Telegram dosen dengan `kirim_laporan_telegram` (teks biasa, tanpa
    tabel Markdown, maksimal 3500 karakter): baris pembuka "Review harian selesai", lalu satu baris per berkas
    berisi nama, NIM, bab dan versi, keputusan, jumlah catatan wajib/saran, serta berkas yang dilewati
-   beserta alasannya. Jika tool ini gagal,
+   beserta alasannya, lalu satu baris status grup WhatsApp (terkirim, tidak ada yang diumumkan,
+   atau gagal beserta errornya). Jika tool ini gagal,
    cukup sebutkan di laporan percakapan; jangan ulangi berkali-kali.
 
 ## Pedoman review
@@ -101,5 +116,6 @@ Tampilkan di percakapan:
    substansi.
 3. **Perlu keputusan dosen**: Draf lengkap atau Dokumen lainnya yang tidak dikirim (draf tersedia di web).
 4. **Dilewati**: berkas beserta alasannya.
+5. **Grup WhatsApp**: terkirim, tidak ada yang diumumkan, atau gagal beserta errornya.
 
 Akhiri dengan pengingat bahwa semua revisi yang dikirim bisa dilihat di panel dosen.

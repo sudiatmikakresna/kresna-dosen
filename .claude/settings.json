@@ -12,7 +12,8 @@
       "mcp__bimbingan__ubah_revisi",
       "mcp__bimbingan__set_ringkasan",
       "mcp__bimbingan__kirim_revisi",
-      "mcp__bimbingan__kirim_laporan_telegram"
+      "mcp__bimbingan__kirim_laporan_telegram",
+      "mcp__bimbingan__kirim_laporan_whatsapp"
     ]
   }
 }

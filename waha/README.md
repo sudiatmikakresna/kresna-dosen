@@ -1,12 +1,10 @@
 # WAHA lokal (engine GOWS) + Cloudflare Tunnel
 
 WAHA berjalan di laptop Anda. Cloudflare Tunnel membuka WAHA ke internet supaya aplikasi di Vercel bisa
-menerima pesan grup (webhook) dan mengirim jawaban (API `sendText`).
+mengirim laporan hasil `/review-skripsi` ke grup WhatsApp (satu arah, lewat API `sendText`).
 
 ```
-Grup WA ──► WAHA (laptop) ──webhook──► kresna-dosen.vercel.app/api/wa/webhook ──► Claude
-                ▲                                                   │
-                └──────── Cloudflare Tunnel ◄──── sendText ─────────┘
+/review-skripsi ──► kresna-dosen.vercel.app ──► Cloudflare Tunnel ──► WAHA (laptop) ──► Grup WA
 ```
 
 Prasyarat: Docker Desktop (Windows/macOS) atau Docker Engine + Compose (Linux).
@@ -48,26 +46,19 @@ harus diperbarui lagi. Pakai pilihan A untuk pemakaian sehari-hari.
 
 ## 3. Hubungkan ke aplikasi
 
-1. Buat rahasia webhook: `openssl rand -hex 32`
-2. Tambahkan ke `waha/.env`, lalu `docker compose up -d` (ulangi dengan `--profile` yang Anda pakai):
-   ```
-   WHATSAPP_HOOK_URL=https://kresna-dosen.vercel.app/api/wa/webhook
-   WHATSAPP_HOOK_EVENTS=message
-   WHATSAPP_HOOK_HMAC_KEY=<rahasia dari langkah 1>
-   ```
-3. Di Vercel → Settings → Environment Variables (Production), lalu Redeploy:
+1. Di Vercel → Settings → Environment Variables (Production), lalu Redeploy:
    - `WAHA_URL` = alamat tunnel, mis. `https://waha.domain-anda.com`
    - `WAHA_API_KEY` = nilai `WAHA_API_KEY` dari `waha/.env`
-   - `WA_WEBHOOK_SECRET` = rahasia dari langkah 1
-   - `ANTHROPIC_API_KEY` = API key dari https://platform.claude.com
-4. Masukkan nomor bot ke grup bimbingan, kirim `/tanya halo`, lalu buka **Panel dosen → WhatsApp** dan
-   klik **Izinkan** pada grup itu.
+2. Masukkan nomor bot ke grup bimbingan.
+3. Buka **Panel dosen → WhatsApp**, klik **Jadikan tujuan** pada grup itu, lalu **Kirim pesan tes ke grup**.
+
+Setelah itu setiap `/review-skripsi` dan review harian otomatis mengumumkan hasilnya ke grup.
 
 ## Catatan
 
 - Tunnel membuat dashboard dan API WAHA bisa diakses dari internet. Semua permintaan API tetap wajib
   `X-Api-Key`, dan dashboard memakai login dari `.env`; jangan bagikan isi `.env`.
-- Bot hanya berjalan selama laptop menyala dan WAHA + tunnel aktif. Pertanyaan saat laptop mati tidak dijawab.
+- Laporan hanya terkirim selama laptop menyala dan WAHA + tunnel aktif. Bila gagal, statusnya tercantum di laporan Telegram.
 - Hentikan: `docker compose --profile tunnel down`. Perbarui: `docker compose pull && docker compose up -d`.
 - `.env` dan folder `sessions/` berisi kredensial dan login WhatsApp: jangan di-commit.
 - Image `gows` dibuat untuk CPU x86/amd64. Di Mac Apple Silicon (M1/M2/M3), cek tag ARM di

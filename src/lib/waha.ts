@@ -1,6 +1,7 @@
 import 'server-only';
 
 // WAHA berjalan di laptop dosen dan dibuka lewat Cloudflare Tunnel; WAHA_URL adalah alamat tunnel itu.
+// Aplikasi hanya mengirim pesan ke WAHA (satu arah); tidak ada webhook masuk.
 const sesi = () => process.env.WAHA_SESSION || 'default';
 const dasar = () => (process.env.WAHA_URL ?? '').replace(/\/$/, '');
 
@@ -35,19 +36,8 @@ export async function statusSesi(): Promise<StatusSesi> {
   }
 }
 
-export async function kirimTeks(chatId: string, text: string, replyTo?: string) {
-  await panggil('/api/sendText', {
-    method: 'POST',
-    body: { session: sesi(), chatId, text, ...(replyTo ? { reply_to: replyTo } : {}), linkPreview: false },
-  });
-}
-
-export async function mengetik(chatId: string, aktif: boolean) {
-  try {
-    await panggil(aktif ? '/api/startTyping' : '/api/stopTyping', { method: 'POST', body: { session: sesi(), chatId }, timeoutMs: 5000 });
-  } catch {
-    // Indikator mengetik hanya kosmetik.
-  }
+export async function kirimTeks(chatId: string, text: string) {
+  await panggil('/api/sendText', { method: 'POST', body: { session: sesi(), chatId, text, linkPreview: false } });
 }
 
 /** Nama grup dari WAHA. Bentuk respons berbeda antar-engine, jadi beberapa kunci dicoba. */
@@ -59,4 +49,23 @@ export async function namaGrup(chatId: string) {
   } catch {
     return null;
   }
+}
+
+const teksId = (v: unknown): string | null => {
+  if (typeof v === 'string') return v;
+  if (v && typeof v === 'object' && typeof (v as { _serialized?: unknown })._serialized === 'string') return (v as { _serialized: string })._serialized;
+  return null;
+};
+
+/** Daftar grup yang diikuti nomor bot. Bentuk respons berbeda antar-engine, jadi dibaca longgar. */
+export async function daftarGrup(): Promise<{ id: string; nama: string | null }[]> {
+  const res = await panggil<unknown>(`/api/${encodeURIComponent(sesi())}/groups?exclude=participants&sortBy=subject&sortOrder=asc`, { timeoutMs: 20000 });
+  const daftar = Array.isArray(res) ? res : res && typeof res === 'object' ? Object.entries(res as Record<string, unknown>).map(([k, v]) => ({ ...(v as object), _kunci: k })) : [];
+  return daftar.flatMap((g) => {
+    const r = g as Record<string, unknown>;
+    const id = teksId(r.id) ?? teksId(r.JID) ?? teksId(r.jid) ?? teksId(r._kunci);
+    if (!id || !id.endsWith('@g.us')) return [];
+    const nama = r.subject ?? r.name ?? r.Name;
+    return [{ id, nama: typeof nama === 'string' && nama.trim() ? nama.trim() : null }];
+  });
 }

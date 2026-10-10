@@ -6,6 +6,7 @@ import { labelJenis, TAHAP } from '@/lib/labels';
 import { verifikasiToken } from '@/lib/mcp-token';
 import { driveViewUrl } from '@/lib/google';
 import { chatTelegram, esc, kirimTelegram, telegramSiap } from '@/lib/telegram';
+import { kirimKeGrup } from '@/lib/wa-laporan';
 import {
   aktivitasMahasiswa,
   antrianReview,
@@ -233,6 +234,26 @@ const handler = createMcpHandler(
         try {
           await kirimTelegram(esc(teks));
           return json({ terkirim: true });
+        } catch (e) {
+          return gagal((e as Error).message);
+        }
+      },
+    );
+
+    server.registerTool(
+      'kirim_laporan_whatsapp',
+      {
+        title: 'Kirim laporan ke grup WhatsApp',
+        description:
+          'Mengirim pesan teks ke grup WhatsApp mahasiswa bimbingan yang dipilih dosen (lewat WAHA). Grup dibaca semua mahasiswa: ' +
+          'jangan cantumkan NIM, nilai, atau isi catatan revisi. Format WhatsApp: *tebal*, _miring_. Maksimal 3500 karakter.',
+        inputSchema: { teks: z.string().min(1).max(3500) },
+      },
+      async ({ teks }) => {
+        try {
+          const hasil = await kirimKeGrup(teks);
+          if (hasil.every((h) => !h.terkirim)) return gagal(`Gagal mengirim ke semua grup: ${hasil.map((h) => `${h.grup}: ${h.error}`).join('; ')}`);
+          return json({ hasil });
         } catch (e) {
           return gagal((e as Error).message);
         }

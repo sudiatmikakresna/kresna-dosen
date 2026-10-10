@@ -9,7 +9,8 @@ import { buatToken } from '@/lib/mcp-token';
 import { putuskan } from '@/lib/google';
 import { deteksiChat, esc, kirimTelegram, putuskanTelegram, simpanChatManual } from '@/lib/telegram';
 import { redirect } from 'next/navigation';
-import { KUNCI_AKTIF, KUNCI_PENGETAHUAN, MAKS_PENGETAHUAN, simpanPengaturan } from '@/lib/wa-bot';
+import { kirimKeGrup } from '@/lib/wa-laporan';
+import { namaGrup } from '@/lib/waha';
 import { kirimRevisi, setRingkasan, tambahRevisi, ubahRevisi } from '@/lib/service';
 
 function segarkan(berkasId: number) {
@@ -133,28 +134,32 @@ export async function simpanChatTelegram(form: FormData) {
   redirect(`/dosen/telegram?${q}`);
 }
 
-export async function izinkanGrupWa(chatId: string, diizinkan: boolean) {
+export async function pilihGrupWa(chatId: string, nama: string | null, diizinkan: boolean) {
   await wajibDosen();
-  await db().update(waGrup).set({ diizinkan }).where(eq(waGrup.chatId, chatId));
+  await db()
+    .insert(waGrup)
+    .values({ chatId, nama, diizinkan })
+    .onConflictDoUpdate({ target: waGrup.chatId, set: { diizinkan, ...(nama ? { nama } : {}) } });
   revalidatePath('/dosen/whatsapp');
 }
 
-export async function hapusGrupWa(chatId: string) {
+export async function tambahGrupWaManual(form: FormData) {
   await wajibDosen();
-  await db().delete(waGrup).where(eq(waGrup.chatId, chatId));
-  revalidatePath('/dosen/whatsapp');
+  const id = String(form.get('chatId') ?? '').trim();
+  if (!/^[\d-]{6,40}@g\.us$/.test(id)) redirect('/dosen/whatsapp?error=' + encodeURIComponent('ID grup harus berakhiran @g.us, mis. 120363012345678901@g.us.'));
+  await pilihGrupWa(id, await namaGrup(id), true);
+  redirect('/dosen/whatsapp?ok=grup');
 }
 
-export async function aturBotWa(aktif: boolean) {
+export async function tesGrupWa() {
   await wajibDosen();
-  await simpanPengaturan(KUNCI_AKTIF, aktif ? '1' : '0');
-  revalidatePath('/dosen/whatsapp');
-}
-
-export async function simpanPengetahuanWa(form: FormData) {
-  await wajibDosen();
-  const teks = String(form.get('pengetahuan') ?? '').slice(0, MAKS_PENGETAHUAN);
-  await simpanPengaturan(KUNCI_PENGETAHUAN, teks);
-  revalidatePath('/dosen/whatsapp');
-  redirect('/dosen/whatsapp?disimpan=1');
+  let q = 'ok=tes';
+  try {
+    const hasil = await kirimKeGrup('🔔 Pesan tes dari aplikasi Bimbingan Skripsi. Hasil review berkas akan diumumkan di grup ini.');
+    const gagal = hasil.filter((h) => !h.terkirim);
+    if (gagal.length) q = 'error=' + encodeURIComponent(gagal.map((h) => `${h.grup}: ${h.error}`).join('; '));
+  } catch (e) {
+    q = 'error=' + encodeURIComponent((e as Error).message);
+  }
+  redirect(`/dosen/whatsapp?${q}`);
 }
