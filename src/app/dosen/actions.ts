@@ -7,7 +7,7 @@ import { db, mcpTokens } from '@/db';
 import { wajibDosen } from '@/lib/auth';
 import { buatToken } from '@/lib/mcp-token';
 import { putuskan } from '@/lib/google';
-import { deteksiChat, esc, kirimTelegram, putuskanTelegram } from '@/lib/telegram';
+import { deteksiChat, esc, kirimTelegram, putuskanTelegram, simpanChatManual } from '@/lib/telegram';
 import { redirect } from 'next/navigation';
 import { kirimRevisi, setRingkasan, tambahRevisi, ubahRevisi } from '@/lib/service';
 
@@ -115,4 +115,19 @@ export async function putuskanTelegramAksi() {
   await wajibDosen();
   await putuskanTelegram();
   revalidatePath('/dosen/telegram');
+}
+
+export async function simpanChatTelegram(form: FormData) {
+  await wajibDosen();
+  const id = String(form.get('chatId') ?? '').trim();
+  let q = 'ok=1';
+  try {
+    if (!/^-?\d{4,20}$/.test(id)) throw new Error('Chat ID harus berupa angka, mis. 123456789.');
+    const chat = await simpanChatManual(id);
+    await kirimTelegram(`✅ Notifikasi Bimbingan Skripsi aktif untuk <b>${esc(chat.nama)}</b>.`);
+  } catch (e) {
+    q = 'error=' + encodeURIComponent((e as Error).message);
+  }
+  revalidatePath('/dosen/telegram');
+  redirect(`/dosen/telegram?${q}`);
 }

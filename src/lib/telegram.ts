@@ -49,6 +49,25 @@ export async function putuskanTelegram() {
   await db().delete(pengaturan).where(eq(pengaturan.kunci, KUNCI_NAMA));
 }
 
+/** Username bot dari token yang terpasang, untuk memastikan token milik bot yang benar. */
+export async function infoBot() {
+  try {
+    const me = await panggil<{ username: string; first_name: string }>('getMe');
+    return { username: me.username, nama: me.first_name, error: null };
+  } catch (e) {
+    return { username: null, nama: null, error: (e as Error).message };
+  }
+}
+
+/** Simpan chat ID yang diisi manual, setelah memastikan bot bisa mengirim ke chat itu. */
+export async function simpanChatManual(id: string) {
+  const chat = await panggil<{ id: number; type: string; first_name?: string; last_name?: string; title?: string; username?: string }>('getChat', { chat_id: id });
+  const nama = chat.title ?? ([chat.first_name, chat.last_name].filter(Boolean).join(' ') || (chat.username ? `@${chat.username}` : String(chat.id)));
+  await simpan(KUNCI_CHAT, String(chat.id));
+  await simpan(KUNCI_NAMA, nama);
+  return { id: String(chat.id), nama };
+}
+
 type Update = { message?: { chat: { id: number; type: string; first_name?: string; last_name?: string; username?: string } } };
 
 /** Cari chat pribadi terakhir yang mengirim pesan ke bot, lalu simpan sebagai tujuan notifikasi. */

@@ -1,5 +1,5 @@
-import { chatTelegram, telegramSiap } from '@/lib/telegram';
-import { deteksiTelegram, putuskanTelegramAksi, tesTelegram } from '@/app/dosen/actions';
+import { chatTelegram, infoBot, telegramSiap } from '@/lib/telegram';
+import { deteksiTelegram, putuskanTelegramAksi, simpanChatTelegram, tesTelegram } from '@/app/dosen/actions';
 import { SubmitButton } from '@/components/SubmitButton';
 
 export const metadata = { title: 'Telegram' };
@@ -7,7 +7,7 @@ export const metadata = { title: 'Telegram' };
 export default async function TelegramPage({ searchParams }: { searchParams: Promise<{ ok?: string; tes?: string; error?: string }> }) {
   const { ok, tes, error } = await searchParams;
   const siap = telegramSiap();
-  const chat = siap ? await chatTelegram() : null;
+  const [chat, bot] = siap ? await Promise.all([chatTelegram(), infoBot()]) : [null, null];
   return (
     <>
       <h1 className="h3 mb-1">Notifikasi Telegram</h1>
@@ -24,6 +24,10 @@ export default async function TelegramPage({ searchParams }: { searchParams: Pro
                 <div className="alert alert-warning mb-0">
                   <code>TELEGRAM_BOT_TOKEN</code> belum diatur di environment variable Vercel.
                 </div>
+              ) : bot?.error ? (
+                <div className="alert alert-danger mb-0">
+                  Token bot ditolak Telegram: {bot.error}. Periksa kembali <code>TELEGRAM_BOT_TOKEN</code> di Vercel.
+                </div>
               ) : chat ? (
                 <>
                   <p className="mb-3">Notifikasi dikirim ke <strong>{chat.nama}</strong> <span className="text-body-secondary small font-monospace">(chat ID {chat.id})</span>.</p>
@@ -35,11 +39,31 @@ export default async function TelegramPage({ searchParams }: { searchParams: Pro
                 </>
               ) : (
                 <>
+                  <p className="small mb-2">
+                    Token terhubung ke bot{' '}
+                    <a href={`https://t.me/${bot?.username}`} target="_blank" rel="noreferrer" className="fw-semibold">@{bot?.username}</a>.
+                    Pastikan ini bot yang Anda buat.
+                  </p>
                   <ol className="small">
-                    <li>Buka bot Anda di Telegram, lalu tekan <strong>Start</strong> atau kirim pesan apa saja.</li>
+                    <li>
+                      Buka <a href={`https://t.me/${bot?.username}`} target="_blank" rel="noreferrer">@{bot?.username}</a> di Telegram, tekan{' '}
+                      <strong>Start</strong>, lalu kirim satu pesan, mis. &quot;halo&quot;.
+                    </li>
                     <li>Klik tombol di bawah. Sistem mencari chat Anda dan mengirim pesan konfirmasi.</li>
                   </ol>
                   <form action={deteksiTelegram}><SubmitButton pendingText="Mencari chat…">Deteksi chat Telegram</SubmitButton></form>
+                  <details className="mt-4">
+                    <summary className="small">Deteksi tidak berhasil? Isi chat ID manual</summary>
+                    <p className="small text-body-secondary mt-2 mb-2">
+                      Kirim pesan ke <a href="https://t.me/userinfobot" target="_blank" rel="noreferrer">@userinfobot</a> di Telegram untuk melihat ID Anda,
+                      dan pastikan Anda sudah menekan Start di bot Anda.
+                    </p>
+                    <form action={simpanChatTelegram} className="d-flex flex-wrap gap-2">
+                      <label htmlFor="chatId" className="visually-hidden">Chat ID</label>
+                      <input id="chatId" name="chatId" inputMode="numeric" className="form-control font-monospace" style={{ maxWidth: 220 }} placeholder="mis. 123456789" required />
+                      <SubmitButton className="btn btn-outline-primary">Simpan chat ID</SubmitButton>
+                    </form>
+                  </details>
                 </>
               )}
             </div>
