@@ -80,6 +80,18 @@ Skill Claude Code di `.claude/skills/review-skripsi/` mereview semua berkas di a
   layak disetujui disimpan sebagai draf untuk keputusan dosen), dan melewati berkas yang sudah punya draf.
 - Revisi versi sebelumnya dicek ulang; yang belum diperbaiki ditulis lagi sebagai catatan wajib.
 
+## Notifikasi Telegram
+
+Setiap berkas baru (upload atau link Google Docs) dikirim ke Telegram dosen: nama, NIM, jenis dan versi,
+catatan mahasiswa, serta tautan ke halaman tinjau dan file di Google Drive.
+
+1. Buat bot lewat **@BotFather** (`/newbot`), salin tokennya ke env `TELEGRAM_BOT_TOKEN`, lalu redeploy.
+2. Buka bot di Telegram dan tekan **Start**.
+3. Panel dosen → **Telegram** → **Deteksi chat Telegram**. Chat ID disimpan di database, tidak perlu redeploy.
+
+Notifikasi dikirim di latar belakang (`waitUntil`), jadi unggahan tidak melambat dan tetap berhasil bila
+Telegram sedang gangguan. Tautan "Tinjau di aplikasi" memakai `APP_URL`.
+
 ## Google Docs
 
 Mahasiswa harus mengatur berbagi ke *"Siapa saja yang memiliki link – Pelihat"*. Saat dikirim, sistem menyimpan **salinan PDF ke Google Drive dosen** dan teks dokumen sebagai versi tersebut, jadi revisi tidak bergeser walaupun dokumen asli terus diedit. Pratinjau menampilkan dokumen langsung, dengan tautan ke salinan PDF.

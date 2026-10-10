@@ -114,3 +114,10 @@ export const uploadSesi = pgTable('upload_sesi', {
 export type User = typeof users.$inferSelect;
 export type Berkas = typeof berkas.$inferSelect;
 export type Revisi = typeof revisi.$inferSelect;
+
+/** Pengaturan sederhana kunci–nilai, mis. chat ID Telegram dosen. */
+export const pengaturan = pgTable('pengaturan', {
+  kunci: text('kunci').primaryKey(),
+  nilai: text('nilai').notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+});

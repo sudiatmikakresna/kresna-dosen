@@ -15,6 +15,13 @@
       "when": 1791517758359,
       "tag": "0001_google_drive",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1791590946195,
+      "tag": "0002_telegram",
+      "breakpoints": true
     }
   ]
 }

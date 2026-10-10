@@ -19,6 +19,7 @@ export default async function DosenLayout({ children }: { children: React.ReactN
           { href: '/dosen', label: 'Mahasiswa', exact: true },
           { href: '/dosen/antrian', label: 'Antrian Review', badge: antrian.length },
           { href: '/dosen/drive', label: 'Google Drive', badge: drive ? 0 : 1, badgeClass: 'text-bg-danger' },
+          { href: '/dosen/telegram', label: 'Telegram' },
           { href: '/dosen/mcp', label: 'Koneksi MCP' },
         ]}
       >

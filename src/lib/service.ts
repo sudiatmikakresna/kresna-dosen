@@ -1,7 +1,9 @@
 import 'server-only';
+import { waitUntil } from '@vercel/functions';
 import { and, asc, desc, eq, inArray, lt, ne } from 'drizzle-orm';
 import { aktivitas, berkas, db, revisi, users, type Berkas, type Revisi } from '@/db';
 import { labelJenisPendek, TAHAP, terpisah } from './labels';
+import { notifBerkasBaru } from './telegram';
 
 export type StatusBerkas = Berkas['status'];
 
@@ -48,6 +50,8 @@ export async function simpanBerkasBaru(
       : `Mengunggah ${labelJenisPendek(data.jenis)} versi ${versi}`,
     baru.id,
   );
+  // Kirim notifikasi Telegram tanpa menunda respons ke mahasiswa.
+  waitUntil(notifBerkasBaru(baru));
   return baru;
 }
 

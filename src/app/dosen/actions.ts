@@ -7,6 +7,8 @@ import { db, mcpTokens } from '@/db';
 import { wajibDosen } from '@/lib/auth';
 import { buatToken } from '@/lib/mcp-token';
 import { putuskan } from '@/lib/google';
+import { deteksiChat, esc, kirimTelegram, putuskanTelegram } from '@/lib/telegram';
+import { redirect } from 'next/navigation';
 import { kirimRevisi, setRingkasan, tambahRevisi, ubahRevisi } from '@/lib/service';
 
 function segarkan(berkasId: number) {
@@ -80,4 +82,37 @@ export async function putuskanDrive() {
   const dosen = await wajibDosen();
   await putuskan(dosen.id);
   revalidatePath('/dosen/drive');
+}
+
+export async function deteksiTelegram() {
+  await wajibDosen();
+  let q = 'error=' + encodeURIComponent('Belum ada pesan ke bot. Buka bot di Telegram, tekan Start, lalu coba lagi.');
+  try {
+    const chat = await deteksiChat();
+    if (chat) {
+      await kirimTelegram(`✅ Notifikasi Bimbingan Skripsi aktif untuk <b>${esc(chat.nama)}</b>.`);
+      q = 'ok=1';
+    }
+  } catch (e) {
+    q = 'error=' + encodeURIComponent((e as Error).message);
+  }
+  revalidatePath('/dosen/telegram');
+  redirect(`/dosen/telegram?${q}`);
+}
+
+export async function tesTelegram() {
+  await wajibDosen();
+  let q = 'tes=1';
+  try {
+    await kirimTelegram('🔔 Pesan tes dari Bimbingan Skripsi.');
+  } catch (e) {
+    q = 'error=' + encodeURIComponent((e as Error).message);
+  }
+  redirect(`/dosen/telegram?${q}`);
+}
+
+export async function putuskanTelegramAksi() {
+  await wajibDosen();
+  await putuskanTelegram();
+  revalidatePath('/dosen/telegram');
 }
