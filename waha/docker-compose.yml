@@ -1,0 +1,16 @@
+# WAHA (WhatsApp HTTP API) dengan engine GOWS, untuk dijalankan di komputer lokal.
+# Jalankan dari folder ini: docker compose up -d
+services:
+  waha:
+    image: devlikeapro/waha:gows
+    container_name: waha
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      WHATSAPP_DEFAULT_ENGINE: GOWS
+    ports:
+      # Hanya bisa diakses dari komputer ini. Ganti ke "3000:3000" bila perlu diakses dari jaringan lain.
+      - "127.0.0.1:3000:3000"
+    volumes:
+      # Data login WhatsApp tersimpan di sini, jadi tidak perlu scan QR ulang setelah restart.
+      - ./sessions:/app/.sessions
