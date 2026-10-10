@@ -16,7 +16,8 @@ Jika berisi instruksi fokus (mis. "fokus sitasi"), ikuti di samping pedoman di b
 
 ## Langkah
 
-1. Panggil `antrian_review`. Jika kosong, laporkan "Tidak ada berkas yang menunggu review" dan berhenti.
+1. Panggil `antrian_review`. Jika kosong, kirim "Review harian: tidak ada berkas yang menunggu review hari ini."
+   ke Telegram dosen dengan `kirim_laporan_telegram`, laporkan hal yang sama di percakapan, lalu berhenti.
 2. Untuk setiap berkas, dari yang paling lama:
    1. Panggil `baca_berkas` dengan `berkas_id`. Bila `teks_terpotong` bernilai true, panggil lagi dengan
       `maks_karakter` 400000.
@@ -42,10 +43,10 @@ Jika berisi instruksi fokus (mis. "fokus sitasi"), ikuti di samping pedoman di b
         ini. Kirim catatan dengan `perlu_revisi` bila ada masalah wajib; bila tidak ada, simpan catatan dan
         ringkasan sebagai draf saja (jangan `kirim_revisi`) dan masukkan ke "Perlu keputusan dosen".
 3. Tutup dengan laporan untuk dosen (format di bawah).
-4. Bila ada minimal satu berkas yang diproses (dikirim, disimpan sebagai draf, atau dilewati), kirim versi
-   ringkas laporan itu ke Telegram dosen dengan `kirim_laporan_telegram` (teks biasa, tanpa tabel Markdown,
-   maksimal 3500 karakter): satu baris per berkas berisi nama, NIM, bab dan versi, keputusan, jumlah
-   catatan wajib/saran. Jika antrian kosong, jangan kirim apa pun ke Telegram. Jika tool ini gagal,
+4. Kirim versi ringkas laporan itu ke Telegram dosen dengan `kirim_laporan_telegram` (teks biasa, tanpa
+   tabel Markdown, maksimal 3500 karakter): baris pembuka "Review harian selesai", lalu satu baris per berkas
+   berisi nama, NIM, bab dan versi, keputusan, jumlah catatan wajib/saran, serta berkas yang dilewati
+   beserta alasannya. Jika tool ini gagal,
    cukup sebutkan di laporan percakapan; jangan ulangi berkali-kali.
 
 ## Pedoman review
