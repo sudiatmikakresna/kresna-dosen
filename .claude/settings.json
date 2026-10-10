@@ -1,3 +1,15 @@
 {
-  "enabledMcpjsonServers": ["bimbingan"]
+  "enabledMcpjsonServers": ["bimbingan"],
+  "permissions": {
+    "allow": [
+      "mcp__bimbingan__antrian_review",
+      "mcp__bimbingan__baca_berkas",
+      "mcp__bimbingan__riwayat_mahasiswa",
+      "mcp__bimbingan__daftar_mahasiswa",
+      "mcp__bimbingan__tambah_revisi",
+      "mcp__bimbingan__ubah_revisi",
+      "mcp__bimbingan__set_ringkasan",
+      "mcp__bimbingan__kirim_revisi"
+    ]
+  }
 }

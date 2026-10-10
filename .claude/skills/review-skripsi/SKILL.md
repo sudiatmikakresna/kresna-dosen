@@ -1,6 +1,6 @@
 ---
 name: review-skripsi
-description: Mereview semua berkas skripsi di antrian review sistem Bimbingan Skripsi lewat MCP "bimbingan", menulis catatan revisi, lalu langsung mengirimkannya ke mahasiswa. Jalankan hanya saat dosen mengetik /review-skripsi.
+description: Mereview semua berkas skripsi di antrian review sistem Bimbingan Skripsi lewat MCP "bimbingan", menulis catatan revisi, lalu langsung mengirimkannya ke mahasiswa (pengecekan ke-1 perlu revisi, ke-2 disetujui). Jalankan saat dosen mengetik /review-skripsi atau saat Routine harian memintanya.
 disable-model-invocation: true
 allowed-tools: mcp__bimbingan__antrian_review, mcp__bimbingan__baca_berkas, mcp__bimbingan__riwayat_mahasiswa, mcp__bimbingan__daftar_mahasiswa, mcp__bimbingan__tambah_revisi, mcp__bimbingan__ubah_revisi, mcp__bimbingan__set_ringkasan, mcp__bimbingan__kirim_revisi
 ---
@@ -28,12 +28,19 @@ Jika berisi instruksi fokus (mis. "fokus sitasi"), ikuti di samping pedoman di b
    4. Jika ada `revisi_versi_sebelumnya`, periksa setiap catatan lama satu per satu terhadap teks baru.
       Catatan lama yang belum benar-benar diperbaiki ditulis ulang sebagai catatan **wajib** dengan awalan
       "Belum diperbaiki dari versi N:", walaupun mahasiswa sudah mencentangnya.
-   5. Tentukan keputusan:
-      - Ada minimal satu masalah **wajib** → panggil `tambah_revisi` (semua catatan dalam satu panggilan),
-        `set_ringkasan`, lalu `kirim_revisi` dengan `keputusan: "perlu_revisi"`.
-      - Tidak ada masalah wajib (berkas tampak layak disetujui) → **jangan pernah** memakai
-        `keputusan: "disetujui"`. Tambahkan catatan saran (bila ada) dan ringkasan sebagai draf saja,
-        jangan panggil `kirim_revisi`, dan masukkan berkas ini ke daftar "Perlu keputusan dosen".
+   5. Hitung **pengecekan ke-berapa** untuk bab ini: 1 + jumlah entri di `revisi_versi_sebelumnya` yang
+      daftar `revisi`-nya tidak kosong (versi yang sudah pernah diberi catatan oleh dosen).
+   6. Tentukan keputusan sesuai **aturan dua kali pengecekan** dari dosen:
+      - **Pengecekan ke-1** → panggil `tambah_revisi` (semua catatan dalam satu panggilan), `set_ringkasan`,
+        lalu `kirim_revisi` dengan `keputusan: "perlu_revisi"`. Selalu kirim catatan, walaupun hanya saran.
+      - **Pengecekan ke-2 atau lebih** → bab **disetujui**. Tetap tulis catatan untuk masalah yang tersisa
+        (termasuk "Belum diperbaiki dari versi N:") sebagai bahan perbaikan akhir, isi ringkasan yang
+        menyatakan bab disetujui beserta hal yang masih perlu dirapikan, lalu `kirim_revisi` dengan
+        `keputusan: "disetujui"`. Bila masih ada masalah wajib, cantumkan berkas ini di laporan bagian
+        "Disetujui dengan catatan wajib" supaya dosen bisa menindaklanjuti.
+      - **Pengecualian:** `Dokumen lainnya` (lampiran, data, dll.) dan `Draf lengkap` tidak mengikuti aturan
+        ini. Kirim catatan dengan `perlu_revisi` bila ada masalah wajib; bila tidak ada, simpan catatan dan
+        ringkasan sebagai draf saja (jangan `kirim_revisi`) dan masukkan ke "Perlu keputusan dosen".
 3. Tutup dengan laporan untuk dosen (format di bawah).
 
 ## Pedoman review
@@ -82,9 +89,11 @@ bertanda Wajib perlu diselesaikan sebelum lanjut ke bab berikutnya."
 
 Tampilkan di percakapan:
 
-1. Tabel berkas yang **dikirim**: mahasiswa (nama, NIM), jenis dan versi, jumlah catatan (wajib/saran),
-   satu kalimat inti masalah.
-2. **Perlu keputusan dosen**: berkas yang tampak layak disetujui (belum dikirim, draf tersedia di web).
-3. **Dilewati**: berkas beserta alasannya.
+1. Tabel berkas yang **dikirim**: mahasiswa (nama, NIM), jenis dan versi, pengecekan ke-berapa,
+   keputusan (perlu revisi/disetujui), jumlah catatan (wajib/saran), satu kalimat inti masalah.
+2. **Disetujui dengan catatan wajib**: bab yang disetujui pada pengecekan ke-2 tetapi masih punya masalah
+   substansi.
+3. **Perlu keputusan dosen**: Draf lengkap atau Dokumen lainnya yang tidak dikirim (draf tersedia di web).
+4. **Dilewati**: berkas beserta alasannya.
 
 Akhiri dengan pengingat bahwa semua revisi yang dikirim bisa dilihat di panel dosen.
