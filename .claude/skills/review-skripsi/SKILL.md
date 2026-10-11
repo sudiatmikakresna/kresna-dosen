@@ -1,8 +1,8 @@
 ---
 name: review-skripsi
-description: Mereview semua berkas skripsi di antrian review sistem Bimbingan Skripsi lewat MCP "bimbingan", menulis catatan revisi, lalu langsung mengirimkannya ke mahasiswa (pengecekan ke-1 perlu revisi, ke-2 disetujui) dan mengumumkan hasilnya di grup WhatsApp. Jalankan saat dosen mengetik /review-skripsi atau saat Routine harian memintanya.
+description: Mereview semua berkas skripsi di antrian review sistem Bimbingan Skripsi lewat MCP "bimbingan", menulis catatan revisi, lalu langsung mengirimkannya ke mahasiswa (pengecekan ke-1 perlu revisi; mulai ke-2 disetujui bila setiap sub bab > 70% catatan sebelumnya sudah diperbaiki) dan mengumumkan hasilnya di grup WhatsApp. Jalankan saat dosen mengetik /review-skripsi atau saat Routine harian memintanya.
 disable-model-invocation: true
-allowed-tools: mcp__bimbingan__antrian_review, mcp__bimbingan__baca_berkas, mcp__bimbingan__riwayat_mahasiswa, mcp__bimbingan__daftar_mahasiswa, mcp__bimbingan__tambah_revisi, mcp__bimbingan__ubah_revisi, mcp__bimbingan__set_ringkasan, mcp__bimbingan__kirim_revisi, mcp__bimbingan__kirim_laporan_telegram, mcp__bimbingan__kirim_laporan_whatsapp
+allowed-tools: mcp__bimbingan__antrian_review, mcp__bimbingan__baca_berkas, mcp__bimbingan__riwayat_mahasiswa, mcp__bimbingan__daftar_mahasiswa, mcp__bimbingan__tambah_revisi, mcp__bimbingan__ubah_revisi, mcp__bimbingan__set_ringkasan, mcp__bimbingan__nilai_perbaikan, mcp__bimbingan__kirim_revisi, mcp__bimbingan__kirim_laporan_telegram, mcp__bimbingan__kirim_laporan_whatsapp
 ---
 
 # Review skripsi otomatis
@@ -26,19 +26,29 @@ Jika berisi instruksi fokus (mis. "fokus sitasi"), ikuti di samping pedoman di b
       - Teks tidak tersedia atau kosong (mis. file Excel/gambar): sebutkan bahwa dosen perlu membuka
         `url_google_drive` sendiri.
    3. Review isi berkas memakai pedoman di bawah.
-   4. Jika ada `revisi_versi_sebelumnya`, periksa setiap catatan lama satu per satu terhadap teks baru.
-      Catatan lama yang belum benar-benar diperbaiki ditulis ulang sebagai catatan **wajib** dengan awalan
-      "Belum diperbaiki dari versi N:", walaupun mahasiswa sudah mencentangnya.
-   5. Hitung **pengecekan ke-berapa** untuk bab ini: 1 + jumlah entri di `revisi_versi_sebelumnya` yang
-      daftar `revisi`-nya tidak kosong (versi yang sudah pernah diberi catatan oleh dosen).
-   6. Tentukan keputusan sesuai **aturan dua kali pengecekan** dari dosen:
+   4. Jika `perbaikan.catatan_untuk_dinilai` berisi catatan (catatan dari maks. 2 bimbingan terakhir), periksa
+      setiap catatan satu per satu terhadap teks baru, lalu panggil `nilai_perbaikan` sekali untuk semuanya:
+      `diperbaiki: true` hanya bila teks baru benar-benar menyelesaikan masalahnya, bukan karena mahasiswa
+      mencentangnya. Isi `keterangan` dengan bukti singkat (kutipan pendek teks baru, atau apa yang masih kurang).
+      Catatan yang belum diperbaiki juga ditulis ulang sebagai catatan **wajib** dengan awalan
+      "Belum diperbaiki dari versi N:" dan `lokasi` yang sama dengan catatan aslinya.
+   5. **Pengecekan ke-berapa** dan persentase per sub bab dihitung server: baca `pengecekan_ke`, `per_sub_bab`,
+      dan `rekomendasi_keputusan` dari hasil `nilai_perbaikan` (atau dari `perbaikan` di `baca_berkas` bila
+      belum ada catatan sebelumnya). Sub bab diambil dari nomor di awal `lokasi` (mis. "1.2"), jadi selalu awali
+      `lokasi` catatan baru dengan nomor sub bab.
+   6. Tentukan keputusan sesuai **aturan approve** dari dosen:
       - **Pengecekan ke-1** → panggil `tambah_revisi` (semua catatan dalam satu panggilan), `set_ringkasan`,
         lalu `kirim_revisi` dengan `keputusan: "perlu_revisi"`. Selalu kirim catatan, walaupun hanya saran.
-      - **Pengecekan ke-2 atau lebih** → bab **disetujui**. Tetap tulis catatan untuk masalah yang tersisa
-        (termasuk "Belum diperbaiki dari versi N:") sebagai bahan perbaikan akhir, isi ringkasan yang
-        menyatakan bab disetujui beserta hal yang masih perlu dirapikan, lalu `kirim_revisi` dengan
-        `keputusan: "disetujui"`. Bila masih ada masalah wajib, cantumkan berkas ini di laporan bagian
-        "Disetujui dengan catatan wajib" supaya dosen bisa menindaklanjuti.
+      - **Pengecekan ke-2 atau lebih, dan setiap sub bab > 70% diperbaiki** (`rekomendasi_keputusan` =
+        `disetujui`) → bab **disetujui**. Tetap tulis catatan untuk masalah yang tersisa sebagai bahan perbaikan
+        akhir, isi ringkasan yang menyatakan bab disetujui beserta hal yang masih perlu dirapikan, lalu
+        `kirim_revisi` dengan `keputusan: "disetujui"`. Bila masih ada masalah wajib, cantumkan berkas ini di
+        laporan bagian "Disetujui dengan catatan wajib".
+      - **Pengecekan ke-2 atau lebih, tetapi ada sub bab ≤ 70%** (`rekomendasi_keputusan` = `perlu_revisi`) →
+        kirim dengan `keputusan: "perlu_revisi"`. Di ringkasan, sebut sub bab yang belum mencapai 70% beserta
+        persentasenya, mis. "Sub bab 1.2 baru 50% (1 dari 2 catatan) diperbaiki."
+      - Server menolak `disetujui` yang tidak memenuhi aturan ini; jangan mencoba mengakalinya. Bila ditolak,
+        kirim ulang dengan `perlu_revisi`.
       - **Pengecualian:** `Dokumen lainnya` (lampiran, data, dll.) dan `Draf lengkap` tidak mengikuti aturan
         ini. Kirim catatan dengan `perlu_revisi` bila ada masalah wajib; bila tidak ada, simpan catatan dan
         ringkasan sebagai draf saja (jangan `kirim_revisi`) dan masukkan ke "Perlu keputusan dosen".
@@ -60,7 +70,7 @@ Jika berisi instruksi fokus (mis. "fokus sitasi"), ikuti di samping pedoman di b
    WAHA mati), catat errornya untuk laporan; jangan ulangi berkali-kali.
 5. Kirim versi ringkas laporan itu ke Telegram dosen dengan `kirim_laporan_telegram` (teks biasa, tanpa
    tabel Markdown, maksimal 3500 karakter): baris pembuka "Review harian selesai", lalu satu baris per berkas
-   berisi nama, NIM, bab dan versi, keputusan, jumlah catatan wajib/saran, serta berkas yang dilewati
+   berisi nama, NIM, bab dan versi, keputusan, sub bab di bawah 70% (bila ada), jumlah catatan wajib/saran, serta berkas yang dilewati
    beserta alasannya, lalu satu baris status grup WhatsApp (terkirim, tidak ada yang diumumkan,
    atau gagal beserta errornya). Jika tool ini gagal,
    cukup sebutkan di laporan percakapan; jangan ulangi berkali-kali.
@@ -112,8 +122,9 @@ bertanda Wajib perlu diselesaikan sebelum lanjut ke bab berikutnya."
 Tampilkan di percakapan:
 
 1. Tabel berkas yang **dikirim**: mahasiswa (nama, NIM), jenis dan versi, pengecekan ke-berapa,
-   keputusan (perlu revisi/disetujui), jumlah catatan (wajib/saran), satu kalimat inti masalah.
-2. **Disetujui dengan catatan wajib**: bab yang disetujui pada pengecekan ke-2 tetapi masih punya masalah
+   persentase perbaikan per sub bab (bila ada), keputusan (perlu revisi/disetujui), jumlah catatan
+   (wajib/saran), satu kalimat inti masalah.
+2. **Disetujui dengan catatan wajib**: bab yang disetujui (semua sub bab > 70%) tetapi masih punya masalah
    substansi.
 3. **Perlu keputusan dosen**: Draf lengkap atau Dokumen lainnya yang tidak dikirim (draf tersedia di web).
 4. **Dilewati**: berkas beserta alasannya.

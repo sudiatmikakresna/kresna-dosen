@@ -7,6 +7,7 @@ import { verifikasiToken } from '@/lib/mcp-token';
 import { driveViewUrl } from '@/lib/google';
 import { chatTelegram, esc, kirimTelegram, telegramSiap } from '@/lib/telegram';
 import { berkasDikirimBaruIni, kirimKeGrup } from '@/lib/wa-laporan';
+import { AMBANG_PERSEN, rekapPerbaikan, rekapUntukAgent, simpanPenilaian } from '@/lib/perbaikan';
 import {
   aktivitasMahasiswa,
   antrianReview,
@@ -75,7 +76,7 @@ const handler = createMcpHandler(
       {
         title: 'Baca berkas',
         description:
-          'Ambil metadata dan isi teks berkas (per halaman untuk PDF), catatan dari mahasiswa, catatan revisi yang sudah ada, dan revisi pada versi sebelumnya. Berkas aslinya ada di Google Drive dosen (drive_file_id / url_google_drive); buka lewat konektor Google Drive bila perlu melihat gambar atau tabel. Gunakan sebelum menulis revisi.',
+          'Ambil metadata dan isi teks berkas (per halaman untuk PDF), catatan dari mahasiswa, catatan revisi yang sudah ada, revisi pada versi sebelumnya, dan rekap perbaikan per sub bab (perbaikan) untuk aturan approve. Berkas aslinya ada di Google Drive dosen (drive_file_id / url_google_drive); buka lewat konektor Google Drive bila perlu melihat gambar atau tabel. Gunakan sebelum menulis revisi.',
         inputSchema: {
           berkas_id: z.number().int().describe('ID berkas'),
           maks_karakter: z.number().int().min(1000).max(400000).optional().describe('Batas panjang teks (bawaan 120000)'),
@@ -86,7 +87,7 @@ const handler = createMcpHandler(
         if (!d) return gagal(`Berkas ${berkas_id} tidak ditemukan.`);
         const batas = maks_karakter ?? 120_000;
         const teks = d.berkas.teks ?? null;
-        const lama = await versiSebelumnya(d.berkas);
+        const [lama, rekap] = await Promise.all([versiSebelumnya(d.berkas), rekapPerbaikan(d.berkas.id)]);
         return json({
           berkas_id: d.berkas.id,
           mahasiswa: { mahasiswa_id: d.mahasiswa.id, nama: d.mahasiswa.nama, nim: d.mahasiswa.nim, judul_skripsi: d.mahasiswa.judulSkripsi },
@@ -103,8 +104,23 @@ const handler = createMcpHandler(
           revisi_saat_ini: d.revisi.map((r) => ({ revisi_id: r.id, lokasi: r.lokasi, jenis: r.jenis, teks: r.teks, status: r.status, sumber: r.sumber })),
           revisi_versi_sebelumnya: lama.map((l) => ({
             versi: l.versi,
-            revisi: l.revisi.map((r) => ({ lokasi: r.lokasi, jenis: r.jenis, teks: r.teks, ditandai_selesai_mahasiswa: r.selesai })),
+            revisi: l.revisi.map((r) => ({ revisi_id: r.id, lokasi: r.lokasi, jenis: r.jenis, teks: r.teks, ditandai_selesai_mahasiswa: r.selesai })),
           })),
+          perbaikan: rekap
+            ? {
+                ...rekapUntukAgent(rekap),
+                catatan_untuk_dinilai: rekap.catatan.map((c) => ({
+                  revisi_id: c.revisiId,
+                  versi: c.versi,
+                  sub_bab: c.subBab,
+                  lokasi: c.lokasi,
+                  jenis: c.jenis,
+                  teks: c.teks,
+                  ditandai_selesai_mahasiswa: c.selesaiMenurutMahasiswa,
+                  penilaian: c.diperbaiki === null ? null : { diperbaiki: c.diperbaiki, keterangan: c.keterangan },
+                })),
+              }
+            : null,
           teks: teks ? teks.slice(0, batas) : 'Teks berkas tidak tersedia (gagal diekstrak). Buka url_google_drive untuk membaca.',
           teks_terpotong: !!teks && teks.length > batas,
         });
@@ -199,11 +215,47 @@ const handler = createMcpHandler(
     );
 
     server.registerTool(
+      'nilai_perbaikan',
+      {
+        title: 'Nilai perbaikan catatan sebelumnya',
+        description:
+          'Catat apakah setiap catatan revisi dari bimbingan sebelumnya (perbaikan.catatan_untuk_dinilai di baca_berkas) sudah benar-benar ' +
+          'diperbaiki di versi ini, berdasarkan isi teks baru, bukan centang mahasiswa. Mengembalikan persentase per sub bab dan ' +
+          `rekomendasi keputusan (disetujui bila pengecekan ke-2+ dan setiap sub bab > ${AMBANG_PERSEN}%). Boleh dipanggil ulang untuk mengoreksi.`,
+        inputSchema: {
+          berkas_id: z.number().int(),
+          penilaian: z
+            .array(
+              z.object({
+                revisi_id: z.number().int(),
+                diperbaiki: z.boolean(),
+                keterangan: z.string().max(500).optional().describe('Bukti singkat, mis. kutipan teks baru atau apa yang masih kurang'),
+              }),
+            )
+            .min(1)
+            .max(200),
+        },
+      },
+      async ({ berkas_id, penilaian }) => {
+        try {
+          const rekap = await simpanPenilaian(
+            berkas_id,
+            penilaian.map((p) => ({ revisiId: p.revisi_id, diperbaiki: p.diperbaiki, keterangan: p.keterangan })),
+          );
+          return json(rekapUntukAgent(rekap!));
+        } catch (e) {
+          return gagal((e as Error).message);
+        }
+      },
+    );
+
+    server.registerTool(
       'kirim_revisi',
       {
         title: 'Kirim revisi ke mahasiswa',
         description:
-          'Mengirim semua catatan draf ke mahasiswa dan menetapkan keputusan berkas. Lakukan hanya jika dosen sudah meminta untuk mengirim.',
+          'Mengirim semua catatan draf ke mahasiswa dan menetapkan keputusan berkas. Lakukan hanya jika dosen sudah meminta untuk mengirim. ' +
+          `Untuk Bab 1–4, keputusan disetujui ditolak kecuali pengecekan ke-2 atau lebih dan setiap sub bab > ${AMBANG_PERSEN}% catatannya sudah diperbaiki (lihat nilai_perbaikan).`,
         inputSchema: {
           berkas_id: z.number().int(),
           keputusan: z.enum(['perlu_revisi', 'disetujui']),
@@ -212,6 +264,21 @@ const handler = createMcpHandler(
       },
       async ({ berkas_id, keputusan, ringkasan }) => {
         try {
+          if (keputusan === 'disetujui') {
+            const rekap = await rekapPerbaikan(berkas_id);
+            if (rekap && !rekap.bolehDisetujui) {
+              const alasan =
+                rekap.pengecekanKe < 2
+                  ? 'ini pengecekan ke-1'
+                  : rekap.belumDinilai > 0
+                    ? `${rekap.belumDinilai} catatan bimbingan sebelumnya belum dinilai (pakai nilai_perbaikan)`
+                    : `sub bab yang belum lebih dari ${AMBANG_PERSEN}%: ${rekap.perSubBab
+                        .filter((x) => !x.lolos)
+                        .map((x) => `${x.subBab} (${x.persen}%)`)
+                        .join(', ')}`;
+              return gagal(`Belum boleh disetujui: ${alasan}. Kirim dengan keputusan perlu_revisi.\n${JSON.stringify(rekapUntukAgent(rekap), null, 2)}`);
+            }
+          }
           return json(await kirimRevisi(berkas_id, keputusan, ringkasan, 'mcp'));
         } catch (e) {
           return gagal((e as Error).message);

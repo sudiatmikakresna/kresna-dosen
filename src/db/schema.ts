@@ -1,4 +1,4 @@
-import { boolean, index, integer, pgTable, serial, text, timestamp } from 'drizzle-orm/pg-core';
+import { boolean, index, integer, pgTable, serial, text, timestamp, uniqueIndex } from 'drizzle-orm/pg-core';
 
 export const users = pgTable('users', {
   id: serial('id').primaryKey(),
@@ -130,3 +130,24 @@ export const waGrup = pgTable('wa_grup', {
   terakhirAt: timestamp('terakhir_at', { withTimezone: true }).notNull().defaultNow(),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 });
+
+/**
+ * Penilaian agent/dosen: apakah catatan revisi dari bimbingan sebelumnya sudah diperbaiki di versi baru.
+ * Dipakai untuk aturan approve: setiap sub bab harus > 70% catatannya diperbaiki.
+ */
+export const cekPerbaikan = pgTable(
+  'cek_perbaikan',
+  {
+    id: serial('id').primaryKey(),
+    berkasId: integer('berkas_id')
+      .notNull()
+      .references(() => berkas.id, { onDelete: 'cascade' }),
+    revisiId: integer('revisi_id')
+      .notNull()
+      .references(() => revisi.id, { onDelete: 'cascade' }),
+    diperbaiki: boolean('diperbaiki').notNull(),
+    keterangan: text('keterangan'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex('cek_perbaikan_berkas_revisi_idx').on(t.berkasId, t.revisiId)],
+);

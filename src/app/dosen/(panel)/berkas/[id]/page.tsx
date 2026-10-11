@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { labelJenis, labelJenisPendek, tanggal, terpisah, waktu } from '@/lib/labels';
 import { detailBerkas, versiSebelumnya } from '@/lib/service';
+import { AMBANG_PERSEN, JUMLAH_BIMBINGAN, rekapPerbaikan, type RekapPerbaikan } from '@/lib/perbaikan';
 import { Preview } from '@/components/Preview';
 import { StatusBadge } from '@/components/StatusBadge';
 import { SubmitButton } from '@/components/SubmitButton';
@@ -32,12 +33,73 @@ function FieldsCatatan({ lokasi = '', jenis = 'wajib', teks = '', idPrefix }: { 
   );
 }
 
+function KartuPerbaikan({ r }: { r: RekapPerbaikan }) {
+  const label =
+    r.belumDinilai > 0
+      ? { teks: `${r.belumDinilai} catatan belum dinilai`, cls: 'text-bg-secondary' }
+      : r.bolehDisetujui
+        ? { teks: 'Memenuhi syarat disetujui', cls: 'text-bg-success' }
+        : { teks: 'Belum memenuhi syarat', cls: 'text-bg-warning' };
+  return (
+    <div className="card mt-4">
+      <div className="card-header d-flex flex-wrap justify-content-between align-items-center gap-2">
+        <span className="fw-semibold">Perbaikan per sub bab · pengecekan ke-{r.pengecekanKe}</span>
+        <span className={`badge ${label.cls}`}>{label.teks}</span>
+      </div>
+      <div className="card-body small pb-2">
+        <p className="text-body-secondary mb-2">
+          Catatan dari {JUMLAH_BIMBINGAN} bimbingan terakhir (versi {r.versiDinilai.join(' & ')}). Disetujui bila setiap sub bab &gt; {AMBANG_PERSEN}% diperbaiki.
+        </p>
+        <table className="table table-sm align-middle mb-2">
+          <thead>
+            <tr><th scope="col">Sub bab</th><th scope="col">Diperbaiki</th><th scope="col" style={{ width: '40%' }}>Persentase</th></tr>
+          </thead>
+          <tbody>
+            {r.perSubBab.map((x) => (
+              <tr key={x.subBab}>
+                <td className="fw-semibold">{x.subBab}</td>
+                <td>{x.diperbaiki}/{x.total}{x.dinilai < x.total && <span className="text-body-secondary"> ({x.total - x.dinilai} belum dinilai)</span>}</td>
+                <td>
+                  <div className="d-flex align-items-center gap-2">
+                    <div className="progress flex-grow-1" role="progressbar" aria-label={`Sub bab ${x.subBab}`} aria-valuenow={x.persen} aria-valuemin={0} aria-valuemax={100} style={{ height: 6 }}>
+                      <div className={`progress-bar ${x.lolos ? 'bg-success' : 'bg-warning'}`} style={{ width: `${x.persen}%` }} />
+                    </div>
+                    <span className={x.lolos ? '' : 'text-warning-emphasis fw-semibold'}>{x.persen}%</span>
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        <details>
+          <summary>Rincian per catatan</summary>
+          <ul className="list-unstyled mt-2 mb-0 d-grid gap-2">
+            {r.catatan.map((c) => (
+              <li key={c.revisiId} className="d-flex gap-2">
+                <span className={`badge align-self-start ${c.diperbaiki === null ? 'text-bg-secondary' : c.diperbaiki ? 'text-bg-success' : 'text-bg-warning'}`}>
+                  {c.diperbaiki === null ? 'Belum dinilai' : c.diperbaiki ? 'Diperbaiki' : 'Belum'}
+                </span>
+                <span>
+                  <span className="text-body-secondary">v{c.versi} · </span>
+                  {c.lokasi && <strong>{c.lokasi}: </strong>}
+                  {c.teks}
+                  {c.keterangan && <span className="d-block text-body-secondary fst-italic">{c.keterangan}</span>}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </details>
+      </div>
+    </div>
+  );
+}
+
 export default async function TinjauBerkas({ params }: { params: Promise<{ id: string }> }) {
   const id = Number((await params).id);
   const d = await detailBerkas(id);
   if (!d) notFound();
   const { berkas: b, mahasiswa: m } = d;
-  const lama = await versiSebelumnya(b);
+  const [lama, rekap] = await Promise.all([versiSebelumnya(b), rekapPerbaikan(b.id)]);
   const draf = d.revisi.filter((r) => r.status === 'draf');
   const dibuang = d.revisi.filter((r) => r.status === 'dibuang');
   const terkirim = d.revisi.filter((r) => r.status === 'dikirim');
@@ -74,6 +136,7 @@ export default async function TinjauBerkas({ params }: { params: Promise<{ id: s
       <div className="row g-4">
         <div className="col-xl-6">
           <Preview b={b} untuk="dosen" />
+          {rekap && rekap.pengecekanKe >= 2 && <KartuPerbaikan r={rekap} />}
           {lama.length > 0 && (
             <div className="card mt-4">
               <div className="card-header fw-semibold">Revisi pada versi sebelumnya</div>

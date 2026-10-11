@@ -81,9 +81,12 @@ Skill Claude Code di `.claude/skills/review-skripsi/` mereview semua berkas di a
 - Jalankan `/review-skripsi` di Claude Code dari folder repo ini. Argumen opsional: NIM, nama, ID berkas,
   atau instruksi fokus, mis. `/review-skripsi 2301020053` atau `/review-skripsi fokus konsistensi istilah`.
 - Agar bisa dipakai dari folder mana pun, salin foldernya ke `~/.claude/skills/review-skripsi/`.
-- Aturan dua kali pengecekan per bab: pengecekan ke-1 dikirim dengan keputusan *perlu revisi*,
-  pengecekan ke-2 dikirim dengan keputusan *disetujui* (masalah yang tersisa tetap dicatat).
-  Draf lengkap dan Dokumen lainnya tidak disetujui otomatis.
+- Aturan approve per bab: pengecekan ke-1 dikirim dengan keputusan *perlu revisi*. Mulai pengecekan ke-2,
+  agent menilai setiap catatan dari maksimal 2 bimbingan terakhir (tool `nilai_perbaikan`): sudah diperbaiki
+  atau belum. Bab *disetujui* hanya bila **setiap sub bab** lebih dari 70% catatannya diperbaiki; selain itu
+  *perlu revisi*. Server menolak `disetujui` lewat MCP yang tidak memenuhi aturan ini. Sub bab diambil dari
+  nomor di awal lokasi catatan (mis. "1.2"). Draf lengkap dan Dokumen lainnya tidak disetujui otomatis.
+  Dosen tetap bisa menyetujui manual dari web.
 - Melewati berkas yang sudah punya draf dan berkas tanpa teks.
 - Dijalankan otomatis setiap pagi lewat Routine Claude Code; `.claude/settings.json` mengizinkan tool MCP
   `bimbingan` supaya sesi terjadwal tidak tertahan menunggu persetujuan.
