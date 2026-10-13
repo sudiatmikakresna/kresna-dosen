@@ -77,5 +77,10 @@ alamat yang ditulis permanen, seperti `BENGKEL_URL` di repo tugas mahasiswa.
 - Laporan hanya terkirim selama laptop menyala dan WAHA + tunnel aktif. Bila gagal, statusnya tercantum di laporan Telegram.
 - Hentikan: `docker compose --profile tunnel down`. Perbarui: `docker compose pull && docker compose up -d`.
 - `.env` dan folder `sessions/` berisi kredensial dan login WhatsApp: jangan di-commit.
-- Image `gows` dibuat untuk CPU x86/amd64. Di Mac Apple Silicon (M1/M2/M3), cek tag ARM di
-  https://waha.devlike.pro/docs/how-to/engines/ sebelum menjalankan.
+- Image `gows` dibuat untuk CPU x86/amd64. Di Mac Apple Silicon (M1/M2/M3), tambahkan `WAHA_IMAGE_TAG=gows-arm`
+  ke `waha/.env` sebelum menjalankan.
+- Bila port 3000 di laptop sudah dipakai aplikasi lain, tambahkan mis. `WAHA_HOST_PORT=3010` ke `waha/.env`.
+  Dashboard lalu ada di http://localhost:3010/dashboard.
+- Bila laptop sudah punya tunnel `cloudflared` sendiri (di luar Docker), profile `tunnel` tidak perlu dipakai.
+  Tambahkan hostname WAHA ke `ingress` tunnel itu dengan service `http://localhost:<WAHA_HOST_PORT>`,
+  lalu jalankan `docker compose up -d` saja.
