@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { desc } from 'drizzle-orm';
 import { db, waGrup } from '@/db';
 import { pilihGrupWa, tambahGrupWaManual, tesGrupWa } from '@/app/dosen/actions';
@@ -91,6 +92,11 @@ export default async function WhatsAppPage({ searchParams }: { searchParams: Pro
                       </div>
                     </div>
                     {g.tujuan && <span className="badge text-bg-success">Tujuan laporan</span>}
+                    {g.tujuan && (
+                      <Link href={`/dosen/whatsapp/riwayat?grup=${encodeURIComponent(g.id)}`} className="btn btn-sm btn-outline-primary">
+                        Lihat riwayat
+                      </Link>
+                    )}
                     <form action={pilihGrupWa.bind(null, g.id, g.nama, !g.tujuan)}>
                       <SubmitButton className={`btn btn-sm ${g.tujuan ? 'btn-outline-secondary' : 'btn-primary'}`}>
                         {g.tujuan ? 'Berhenti kirim' : 'Jadikan tujuan'}
