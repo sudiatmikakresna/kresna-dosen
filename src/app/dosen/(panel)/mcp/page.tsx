@@ -32,6 +32,16 @@ const TOOLS_WAHA: [string, string][] = [
   ['tandai_dibaca', 'Tandai chat sudah dibaca'],
 ];
 
+const TOOLS_SISKA: [string, string][] = [
+  ['daftar_kelas', 'Kelas yang diampu pada periode berjalan'],
+  ['jadwal_mengajar', 'Pertemuan pada satu tanggal beserta statusnya'],
+  ['detail_kelas', 'Semua pertemuan satu kelas'],
+  ['lihat_presensi', 'Peserta, status, dan rekap presensi satu pertemuan'],
+  ['mulai_pertemuan', 'Memulai pertemuan yang masih terjadwal'],
+  ['ubah_presensi', 'Mengisi Hadir/Sakit/Izin/Alfa untuk mahasiswa tertentu'],
+  ['tutup_presensi', 'Mengisi Alfa untuk mahasiswa yang belum punya status'],
+];
+
 export default async function McpPage() {
   const dosen = await wajibDosen();
   const h = await headers();
@@ -39,6 +49,7 @@ export default async function McpPage() {
   const proto = h.get('x-forwarded-proto') ?? (host.startsWith('localhost') ? 'http' : 'https');
   const mcpUrl = `${proto}://${host}/api/mcp`;
   const wahaUrl = `${proto}://${host}/api/waha/mcp`;
+  const siskaUrl = `${proto}://${host}/api/siska/mcp`;
   const tokens = await db().select().from(mcpTokens).where(eq(mcpTokens.dosenId, dosen.id)).orderBy(desc(mcpTokens.createdAt));
   const koneksi = await db()
     .select()
@@ -75,7 +86,9 @@ export default async function McpPage() {
                 <dt className="col-sm-4">WhatsApp (WAHA)</dt>
                 <dd className="col-sm-8"><code className="user-select-all">{wahaUrl}</code></dd>
                 <dt className="col-sm-4">Bimbingan Skripsi</dt>
-                <dd className="col-sm-8 mb-0"><code className="user-select-all">{mcpUrl}</code></dd>
+                <dd className="col-sm-8"><code className="user-select-all">{mcpUrl}</code></dd>
+                <dt className="col-sm-4">SISKA (presensi kuliah)</dt>
+                <dd className="col-sm-8 mb-0"><code className="user-select-all">{siskaUrl}</code></dd>
               </dl>
             </div>
             <div className="table-responsive border-top">
@@ -85,7 +98,7 @@ export default async function McpPage() {
                   {koneksi.map((k) => (
                     <tr key={k.id}>
                       <td>{k.namaKlien ?? 'Klien MCP'}<div className="small text-body-secondary">sejak {waktu(k.createdAt)}</div></td>
-                      <td className="small">{k.resource?.endsWith('/api/waha/mcp') ? 'WhatsApp' : k.resource?.endsWith('/api/mcp') ? 'Bimbingan' : 'Semua'}</td>
+                      <td className="small">{k.resource?.endsWith('/api/waha/mcp') ? 'WhatsApp' : k.resource?.endsWith('/api/siska/mcp') ? 'SISKA' : k.resource?.endsWith('/api/mcp') ? 'Bimbingan' : 'Semua'}</td>
                       <td className="small">{waktu(k.lastUsedAt)}</td>
                       <td className="text-end">
                         <form action={cabutKoneksiOauth.bind(null, k.id)}><button className="btn btn-sm btn-outline-danger">Cabut</button></form>
@@ -142,6 +155,17 @@ export default async function McpPage() {
             </ul>
             <div className="card-footer small text-body-secondary">
               <code>kirim_pesan</code> mengirim atas nama nomor Anda. Atur di Claude agar tool ini selalu meminta persetujuan.
+            </div>
+          </div>
+          <div className="card mt-4">
+            <div className="card-header fw-semibold">Tool SISKA (<code>/api/siska/mcp</code>)</div>
+            <ul className="list-group list-group-flush small">
+              {TOOLS_SISKA.map(([n, d]) => (
+                <li key={n} className="list-group-item"><code>{n}</code><div className="text-body-secondary">{d}</div></li>
+              ))}
+            </ul>
+            <div className="card-footer small text-body-secondary">
+              Memakai <code>SISKA_COOKIE</code> akun dosen. Tool yang mengubah presensi berjalan atas nama Anda di SISKA.
             </div>
           </div>
         </div>

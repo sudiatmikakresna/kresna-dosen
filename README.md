@@ -92,23 +92,28 @@ Skill Claude Code di `.claude/skills/review-skripsi/` mereview semua berkas di a
   `bimbingan` supaya sesi terjadwal tidak tertahan menunggu persetujuan.
 - Revisi versi sebelumnya dicek ulang; yang belum diperbaiki ditulis lagi sebagai catatan wajib.
 
-## Connector Claude chat (OAuth): WhatsApp dan Bimbingan
+## Connector Claude chat (OAuth): WhatsApp, Bimbingan, dan SISKA
 
-Dua server MCP bisa dipasang sebagai **custom connector** di Claude chat (claude.ai, Desktop, mobile) tanpa token:
+Tiga server MCP bisa dipasang sebagai **custom connector** di Claude chat (claude.ai, Desktop, mobile) tanpa token:
 
 | Connector | URL | Isi |
 | --- | --- | --- |
 | WhatsApp (WAHA) | `https://kresna-dosen.vercel.app/api/waha/mcp` | `status_whatsapp`, `daftar_chat`, `daftar_grup`, `baca_pesan`, `riwayat_grup_tersimpan`, `cek_nomor`, `kirim_pesan`, `tandai_dibaca` |
 | Bimbingan Skripsi | `https://kresna-dosen.vercel.app/api/mcp` | tool review di atas |
+| SISKA (presensi kuliah) | `https://kresna-dosen.vercel.app/api/siska/mcp` | `daftar_kelas`, `jadwal_mengajar`, `detail_kelas`, `lihat_presensi`, `mulai_pertemuan`, `ubah_presensi`, `tutup_presensi` |
 
 Pasang: Claude → **Customize → Connectors → Add → Custom → Web** → isi nama dan URL → **Add** → **Connect**.
 Claude membuka `/oauth/izin`; masuk sebagai dosen lalu klik **Izinkan**. Koneksi aktif terlihat dan bisa dicabut di
 **Panel dosen → Koneksi MCP**.
 
+Connector SISKA memakai `SISKA_COOKIE` (cookie `remember_web_…` akun dosen, sama dengan aplikasi absensi-siska) di
+environment Vercel; client SISKA ada di `src/lib/siska/`. `ubah_presensi` dan `tutup_presensi` mengubah data SISKA
+atas nama dosen, jadi biarkan pada **Needs approval**.
+
 Cara kerjanya (aplikasi menjadi server otorisasi OAuth 2.1 sendiri, tanpa layanan luar):
 
 - Discovery: `401` + `WWW-Authenticate: Bearer resource_metadata=…` →
-  `/.well-known/oauth-protected-resource/api/waha/mcp` (atau `/api/mcp`) → `/.well-known/oauth-authorization-server`.
+  `/.well-known/oauth-protected-resource/api/waha/mcp` (atau `/api/mcp`, `/api/siska/mcp`) → `/.well-known/oauth-authorization-server`.
 - Klien: Client ID Metadata Document dari claude.ai/claude.com, atau Dynamic Client Registration di `/api/oauth/register`.
   Hanya redirect `https://claude.ai/…`, `https://claude.com/…`, dan loopback Claude Code yang diterima.
 - Authorization code + PKCE S256 (`/oauth/izin`), token di `/api/oauth/token` (form-urlencoded). Access token 1 jam,
@@ -118,8 +123,8 @@ Cara kerjanya (aplikasi menjadi server otorisasi OAuth 2.1 sendiri, tanpa layana
 - `kirim_pesan` mengirim atas nama nomor WhatsApp dosen. Biarkan tool itu pada **Needs approval** di pengaturan connector.
 - Keamanan: hanya ada satu akun dosen (setup sekali), jadi hanya dosen itu yang bisa mengizinkan connector. Login dosen
   dikunci 15 menit setelah 8 percobaan gagal (per username dan per IP). Setiap login dosen, penguncian, dan connector
-  baru dikirim sebagai peringatan ke Telegram dosen. Token panel `bmb_…` tidak berlaku di server WhatsApp; WhatsApp
-  hanya lewat OAuth. Halaman aplikasi tidak bisa disisipkan (iframe) di situs lain.
+  baru dikirim sebagai peringatan ke Telegram dosen. Token panel `bmb_…` tidak berlaku di server WhatsApp dan SISKA;
+  keduanya hanya lewat OAuth. Halaman aplikasi tidak bisa disisipkan (iframe) di situs lain.
 
 ## Notifikasi Telegram
 

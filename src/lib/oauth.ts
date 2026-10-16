@@ -30,6 +30,7 @@ export function origin() {
 export const RESOURCE = {
   waha: { path: '/api/waha/mcp', nama: 'WhatsApp (WAHA)' },
   bimbingan: { path: '/api/mcp', nama: 'Bimbingan Skripsi' },
+  siska: { path: '/api/siska/mcp', nama: 'SISKA (presensi kuliah)' },
 } as const;
 export type JenisResource = keyof typeof RESOURCE;
 
