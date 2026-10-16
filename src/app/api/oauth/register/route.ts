@@ -12,7 +12,7 @@ export async function POST(req: Request) {
     return jsonCors({ error: 'invalid_client_metadata', error_description: 'Body harus JSON.' }, { status: 400 });
   }
   const hasil = await daftarKlien(body);
-  if ('error' in hasil) return jsonCors({ error: hasil.error, error_description: hasil.pesan }, { status: 400 });
+  if ('error' in hasil) return jsonCors({ error: hasil.error, error_description: hasil.pesan }, { status: hasil.error === 'too_many_requests' ? 429 : 400 });
   return jsonCors(hasil.data, { status: 201 });
 }
 export const OPTIONS = opsi;

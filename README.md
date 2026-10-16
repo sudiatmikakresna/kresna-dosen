@@ -115,7 +115,11 @@ Cara kerjanya (aplikasi menjadi server otorisasi OAuth 2.1 sendiri, tanpa layana
   refresh token 90 hari yang dirotasi setiap dipakai. Token terikat ke server MCP yang disetujui (parameter `resource`).
   Database hanya menyimpan hash token (`oauth_klien`, `oauth_kode`, `oauth_token`).
 - Token panel `bmb_…` tetap berlaku untuk Claude Code lewat header `Authorization` (`.mcp.json`).
-- `kirim_pesan` mengirim atas nama nomor WhatsApp dosen. Biarkan tool itu pada **Ask each time** di pengaturan connector.
+- `kirim_pesan` mengirim atas nama nomor WhatsApp dosen. Biarkan tool itu pada **Needs approval** di pengaturan connector.
+- Keamanan: hanya ada satu akun dosen (setup sekali), jadi hanya dosen itu yang bisa mengizinkan connector. Login dosen
+  dikunci 15 menit setelah 8 percobaan gagal (per username dan per IP). Setiap login dosen, penguncian, dan connector
+  baru dikirim sebagai peringatan ke Telegram dosen. Token panel `bmb_…` tidak berlaku di server WhatsApp; WhatsApp
+  hanya lewat OAuth. Halaman aplikasi tidak bisa disisipkan (iframe) di situs lain.
 
 ## Notifikasi Telegram
 

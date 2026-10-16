@@ -10,6 +10,8 @@ import { SCOPE, verifikasiAkses, type JenisResource } from './oauth';
 export async function verifikasiBearer(token: string | undefined, r: JenisResource): Promise<AuthInfo | undefined> {
   if (!token) return undefined;
   if (token.startsWith('bmb_')) {
+    // Token panel hanya untuk server Bimbingan (Claude Code). WhatsApp wajib lewat OAuth connector.
+    if (r !== 'bimbingan') return undefined;
     const hasil = await verifikasiToken(token);
     return hasil ? { token, clientId: `dosen:${hasil.dosen.id}`, scopes: [SCOPE], extra: { dosenId: hasil.dosen.id } } : undefined;
   }

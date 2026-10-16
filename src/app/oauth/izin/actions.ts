@@ -2,7 +2,9 @@
 
 import { redirect } from 'next/navigation';
 import { penggunaSaatIni } from '@/lib/auth';
-import { buatKode, origin, SCOPE } from '@/lib/oauth';
+import { buatKode, origin, RESOURCE, SCOPE } from '@/lib/oauth';
+import { ipPeminta, peringatan } from '@/lib/keamanan';
+import { esc } from '@/lib/telegram';
 import { urlKembali, validasi, type Permintaan } from './validasi';
 
 const KUNCI = ['response_type', 'client_id', 'redirect_uri', 'code_challenge', 'code_challenge_method', 'state', 'scope', 'resource'] as const;
@@ -27,5 +29,9 @@ export async function putuskanIzin(form: FormData) {
     scope: p.scope?.trim() || SCOPE,
     resource: v.resource,
   });
+  await peringatan(
+    `🔐 <b>Connector baru diizinkan</b>: ${esc(v.klien.nama)} → ${esc(v.jenisResource.map((r) => RESOURCE[r].nama).join(', '))}\n` +
+      `IP <code>${esc(await ipPeminta())}</code>. Bukan Anda? Cabut di Panel dosen → Koneksi MCP lalu ganti password.`,
+  );
   redirect(urlKembali(v.redirectUri, { code, state: p.state, iss }));
 }

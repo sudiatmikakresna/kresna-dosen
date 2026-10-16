@@ -258,3 +258,15 @@ export const reviewAi = pgTable(
 );
 
 export type ReviewAi = typeof reviewAi.$inferSelect;
+
+/** Percobaan login dosen yang gagal, untuk membatasi tebak password (per username dan per IP, jendela 15 menit). */
+export const loginGagal = pgTable(
+  'login_gagal',
+  {
+    id: serial('id').primaryKey(),
+    username: text('username').notNull(),
+    ip: text('ip').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index('login_gagal_username_idx').on(t.username, t.createdAt), index('login_gagal_ip_idx').on(t.ip, t.createdAt)],
+);

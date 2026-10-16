@@ -1,6 +1,6 @@
 import 'server-only';
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
-import { and, eq, gt, isNull } from 'drizzle-orm';
+import { and, count, eq, gt, isNull } from 'drizzle-orm';
 import { db, oauthKlien, oauthKode, oauthToken, users } from '@/db';
 import { originAplikasi } from './picu-review';
 
@@ -139,6 +139,9 @@ export async function daftarKlien(body: unknown) {
   const metode = b.token_endpoint_auth_method ?? 'none';
   if (metode !== 'none') return { error: 'invalid_client_metadata', pesan: 'Hanya klien publik (token_endpoint_auth_method=none).' } as const;
   const nama = typeof b.client_name === 'string' ? b.client_name.slice(0, 120) : null;
+  // Batasi pendaftaran supaya endpoint publik ini tidak bisa dipakai membanjiri database.
+  const [{ n }] = await db().select({ n: count() }).from(oauthKlien).where(gt(oauthKlien.createdAt, new Date(Date.now() - 3_600_000)));
+  if (n >= 30) return { error: 'too_many_requests', pesan: 'Terlalu banyak pendaftaran klien. Coba lagi nanti.' } as const;
   const clientId = acak('kl');
   await db().insert(oauthKlien).values({ clientId, nama, redirectUris: uris.join('\n') });
   return {
@@ -257,7 +260,8 @@ export async function verifikasiAkses(token: string, r: JenisResource) {
     .where(and(eq(oauthToken.accessHash, hash(token)), isNull(oauthToken.revokedAt), gt(oauthToken.accessKedaluwarsaAt, new Date())))
     .limit(1);
   if (!row || row.role !== 'dosen') return null;
-  if (row.resource && row.resource.replace(/\/$/, '') !== resourceUrl(r)) return null;
+  // Token selalu terikat ke satu server MCP; token tanpa resource tidak berlaku di mana pun.
+  if (!row.resource || row.resource.replace(/\/$/, '') !== resourceUrl(r)) return null;
   await db().update(oauthToken).set({ lastUsedAt: new Date() }).where(eq(oauthToken.id, row.id));
   return row;
 }

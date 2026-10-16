@@ -13,7 +13,7 @@ export type Permintaan = {
 };
 
 export type HasilValidasi =
-  | { jenis: 'ok'; klien: Klien; redirectUri: string; resource: string | null; jenisResource: JenisResource[] }
+  | { jenis: 'ok'; klien: Klien; redirectUri: string; resource: string; jenisResource: JenisResource[] }
   /** Klien atau redirect tidak sah: tampilkan galat, jangan redirect (RFC 6749 4.1.2.1). */
   | { jenis: 'halaman'; pesan: string }
   /** Permintaan salah tapi redirect sah: kembalikan galat ke klien. */
@@ -37,14 +37,11 @@ export async function validasi(p: Permintaan, iss: string): Promise<HasilValidas
   if (!p.code_challenge || p.code_challenge_method !== 'S256') return balik('invalid_request', 'PKCE S256 wajib.');
   if (!/^[A-Za-z0-9_-]{43,128}$/.test(p.code_challenge)) return balik('invalid_request', 'code_challenge tidak valid.');
 
-  const semua = Object.keys(RESOURCE) as JenisResource[];
-  let resource: string | null = null;
-  let jenisResource = semua;
-  if (p.resource) {
-    const cocok = semua.find((r) => resourceUrl(r) === p.resource!.replace(/\/$/, ''));
-    if (!cocok) return balik('invalid_target', 'resource tidak dikenal.');
-    resource = resourceUrl(cocok);
-    jenisResource = [cocok];
-  }
+  // Wajib (MCP authorization spec, RFC 8707): token hanya berlaku untuk satu server MCP yang disebut di sini.
+  if (!p.resource) return balik('invalid_target', 'Parameter resource wajib.');
+  const cocok = (Object.keys(RESOURCE) as JenisResource[]).find((r) => resourceUrl(r) === p.resource!.replace(/\/$/, ''));
+  if (!cocok) return balik('invalid_target', 'resource tidak dikenal.');
+  const resource = resourceUrl(cocok);
+  const jenisResource = [cocok];
   return { jenis: 'ok', klien, redirectUri: p.redirect_uri, resource, jenisResource };
 }

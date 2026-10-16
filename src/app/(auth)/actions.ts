@@ -7,6 +7,8 @@ import { z } from 'zod';
 import { db, users } from '@/db';
 import { buatSesi, hapusSesi } from '@/lib/auth';
 import { catatAktivitas } from '@/lib/service';
+import { catatLoginGagal, ipPeminta, loginTerkunci, peringatan } from '@/lib/keamanan';
+import { esc } from '@/lib/telegram';
 
 export type FormState = { error?: string } | undefined;
 
@@ -48,11 +50,15 @@ export async function masuk(_: FormState, form: FormData): Promise<FormState> {
 export async function masukDosen(_: FormState, form: FormData): Promise<FormState> {
   const username = String(form.get('username') ?? '').trim();
   const password = String(form.get('password') ?? '');
+  const ip = await ipPeminta();
+  if (await loginTerkunci(username, ip)) return { error: 'Terlalu banyak percobaan gagal. Coba lagi 15 menit lagi.' };
   const [user] = await db().select().from(users).where(eq(users.username, username)).limit(1);
   if (!user || user.role !== 'dosen' || !(await bcrypt.compare(password, user.passwordHash))) {
+    await catatLoginGagal(username, ip);
     return { error: 'Username atau password salah.' };
   }
   await buatSesi(user);
+  await peringatan(`🔑 <b>Login dosen</b> berhasil sebagai <code>${esc(user.username ?? '')}</code> dari IP <code>${esc(ip)}</code>. Bukan Anda? Segera ganti password.`);
   // Kembali ke layar persetujuan connector bila login dimulai dari sana; tujuan lain diabaikan (open redirect).
   const next = String(form.get('next') ?? '');
   redirect(next.startsWith('/oauth/izin?') ? next : '/dosen');
@@ -86,9 +92,7 @@ export async function setupDosen(_: FormState, form: FormData): Promise<FormStat
     })
     .returning();
   await buatSesi(user);
-  // Kembali ke layar persetujuan connector bila login dimulai dari sana; tujuan lain diabaikan (open redirect).
-  const next = String(form.get('next') ?? '');
-  redirect(next.startsWith('/oauth/izin?') ? next : '/dosen');
+  redirect('/dosen');
 }
 
 export async function keluar() {
