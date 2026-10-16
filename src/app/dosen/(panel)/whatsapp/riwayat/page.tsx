@@ -42,13 +42,12 @@ export default async function RiwayatGrupPage({ searchParams }: { searchParams: 
       </nav>
       <h1 className="h3 mb-1">{g.nama ?? 'Grup tanpa nama'}</h1>
       <p className="text-body-secondary small mb-4">
-        Pesan dibaca langsung dari WAHA di laptop dan tidak disimpan di aplikasi. Riwayat hanya tersedia sejak nomor ditautkan ke WAHA,
-        dan hanya bisa dibuka saat laptop, WAHA, dan tunnel menyala.
+        Pesan dibaca langsung dari WAHA dan tidak disimpan di aplikasi. Riwayat hanya tersedia sejak nomor ditautkan ke WAHA.
       </p>
 
       {error ? (
         <div className="alert alert-danger">
-          Gagal membaca pesan dari WAHA. Pastikan laptop menyala, WAHA dan Cloudflare Tunnel berjalan.
+          Gagal membaca pesan dari WAHA. Pastikan WAHA di VPS berjalan dan sesi WhatsApp berstatus WORKING.
           <div className="mt-1 text-break small">{error}</div>
         </div>
       ) : pesan.length === 0 ? (

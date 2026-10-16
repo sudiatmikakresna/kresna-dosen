@@ -1,6 +1,6 @@
 import 'server-only';
 
-// WAHA berjalan di laptop dosen dan dibuka lewat Cloudflare Tunnel; WAHA_URL adalah alamat tunnel itu.
+// WAHA berjalan di VPS (https://waha.kresna.blog); WAHA_URL adalah alamat itu.
 // Aplikasi hanya mengirim pesan ke WAHA (satu arah); tidak ada webhook masuk.
 const sesi = () => process.env.WAHA_SESSION || 'default';
 const dasar = () => (process.env.WAHA_URL ?? '').replace(/\/$/, '');

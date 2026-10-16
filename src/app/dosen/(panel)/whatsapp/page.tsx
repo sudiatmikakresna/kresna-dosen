@@ -47,12 +47,12 @@ export default async function WhatsAppPage({ searchParams }: { searchParams: Pro
             <div className="card-body small">
               {!siap ? (
                 <div className="alert alert-warning mb-0">
-                  Atur <code>WAHA_URL</code> (alamat Cloudflare Tunnel) dan <code>WAHA_API_KEY</code> di environment variable Vercel, lalu
+                  Atur <code>WAHA_URL</code> (alamat WAHA, mis. https://waha.kresna.blog) dan <code>WAHA_API_KEY</code> di environment variable Vercel, lalu
                   redeploy. Panduan: <code>waha/README.md</code>.
                 </div>
               ) : sesi?.error ? (
                 <div className="alert alert-danger mb-0">
-                  WAHA tidak terjangkau. Pastikan laptop menyala, WAHA dan Cloudflare Tunnel berjalan, dan <code>WAHA_URL</code> benar.
+                  WAHA tidak terjangkau. Pastikan WAHA di VPS berjalan dan <code>WAHA_URL</code> serta <code>WAHA_API_KEY</code> benar.
                   <div className="mt-1 text-break">{sesi.error}</div>
                 </div>
               ) : (
@@ -61,7 +61,7 @@ export default async function WhatsAppPage({ searchParams }: { searchParams: Pro
                     Sesi WhatsApp: <strong>{sesi?.status}</strong>
                     {sesi?.me && <span className="text-body-secondary"> · {sesi.me.pushName} {sesi.me.id.split('@')[0]}</span>}
                   </p>
-                  {sesi?.status !== 'WORKING' && <p className="text-danger mb-2">Buka dashboard WAHA di laptop dan scan QR sampai status WORKING.</p>}
+                  {sesi?.status !== 'WORKING' && <p className="text-danger mb-2">Buka dashboard WAHA dan scan QR sampai status WORKING.</p>}
                   <form action={tesGrupWa}>
                     <SubmitButton className="btn btn-outline-primary" pendingText="Mengirim…">Kirim pesan tes ke grup</SubmitButton>
                   </form>

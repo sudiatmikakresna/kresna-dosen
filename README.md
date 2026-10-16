@@ -134,11 +134,12 @@ Setiap kali `/review-skripsi` (atau Routine review harian) mengirim revisi, ring
 WhatsApp mahasiswa lewat tool MCP `kirim_laporan_whatsapp`: nama, bab dan versi, serta keputusan. NIM dan isi catatan
 tidak dikirim ke grup. Alurnya satu arah; bot tidak membaca atau menjawab pesan grup.
 
-- WhatsApp terhubung lewat WAHA (engine GOWS) di laptop dosen, dibuka ke internet dengan Cloudflare Tunnel.
-  Langkah lengkap ada di [`waha/README.md`](waha/README.md).
-- Environment variable Vercel: `WAHA_URL` (alamat tunnel), `WAHA_API_KEY`, dan `WAHA_SESSION` (opsional, default `default`).
-- Pilih grup tujuan di **Panel dosen → WhatsApp**. Laporan hanya terkirim saat laptop, WAHA, dan tunnel menyala;
-  bila gagal, statusnya tercantum di laporan Telegram.
+- WhatsApp terhubung lewat WAHA (engine GOWS) di VPS: `https://waha.kresna.blog`, session `default`.
+  Folder `waha/` berisi konfigurasi Docker bila WAHA dijalankan sendiri (lokal atau server lain).
+- Environment variable Vercel: `WAHA_URL` (`https://waha.kresna.blog`), `WAHA_API_KEY`, dan `WAHA_SESSION`
+  (opsional, default `default`).
+- Pilih grup tujuan di **Panel dosen → WhatsApp**. Bila WAHA tidak terjangkau atau sesi logout, pengumuman gagal
+  dan statusnya tercantum di laporan Telegram.
 
 ## Google Docs
 

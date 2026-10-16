@@ -1,4 +1,8 @@
-# WAHA lokal (engine GOWS) + Cloudflare Tunnel
+# WAHA (engine GOWS)
+
+> **Produksi saat ini:** WAHA berjalan di VPS `https://waha.kresna.blog` (session `default`). Aplikasi memakainya lewat
+> `WAHA_URL` dan `WAHA_API_KEY` di Vercel. Panduan di bawah untuk menjalankan WAHA sendiri, mis. di laptop untuk
+> pengujian atau sebagai cadangan.
 
 WAHA berjalan di laptop Anda. Cloudflare Tunnel membuka WAHA ke internet supaya aplikasi di Vercel bisa
 mengirim laporan hasil `/review-skripsi` ke grup WhatsApp (satu arah, lewat API `sendText`).
