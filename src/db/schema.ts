@@ -151,3 +151,28 @@ export const cekPerbaikan = pgTable(
   },
   (t) => [uniqueIndex('cek_perbaikan_berkas_revisi_idx').on(t.berkasId, t.revisiId)],
 );
+
+/** Log review otomatis lewat Claude API: kunci agar satu berkas tidak direview ganda, plus pemakaian token. */
+export const reviewAi = pgTable(
+  'review_ai',
+  {
+    id: serial('id').primaryKey(),
+    berkasId: integer('berkas_id')
+      .notNull()
+      .references(() => berkas.id, { onDelete: 'cascade' }),
+    status: text('status', { enum: ['proses', 'dikirim', 'draf', 'dilewati', 'gagal'] }).notNull().default('proses'),
+    keputusan: text('keputusan'),
+    model: text('model'),
+    inputTokens: integer('input_tokens'),
+    outputTokens: integer('output_tokens'),
+    cacheReadTokens: integer('cache_read_tokens'),
+    jumlahCatatan: integer('jumlah_catatan'),
+    alasan: text('alasan'),
+    durasiMs: integer('durasi_ms'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    selesaiAt: timestamp('selesai_at', { withTimezone: true }),
+  },
+  (t) => [index('review_ai_berkas_idx').on(t.berkasId, t.createdAt)],
+);
+
+export type ReviewAi = typeof reviewAi.$inferSelect;
