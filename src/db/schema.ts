@@ -160,6 +160,60 @@ export const waPesan = pgTable(
 export type WaPesan = typeof waPesan.$inferSelect;
 
 /**
+ * Klien OAuth hasil Dynamic Client Registration (RFC 7591), mis. connector Claude. Klien CIMD (client_id berupa URL)
+ * tidak disimpan di sini; metadatanya dibaca dari URL itu saat otorisasi.
+ */
+export const oauthKlien = pgTable('oauth_klien', {
+  clientId: text('client_id').primaryKey(),
+  nama: text('nama'),
+  /** Daftar redirect URI, dipisah baris baru. */
+  redirectUris: text('redirect_uris').notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+/** Kode otorisasi sekali pakai (PKCE S256), berlaku 5 menit. Yang disimpan hanya hash-nya. */
+export const oauthKode = pgTable('oauth_kode', {
+  kodeHash: text('kode_hash').primaryKey(),
+  clientId: text('client_id').notNull(),
+  dosenId: integer('dosen_id')
+    .notNull()
+    .references(() => users.id, { onDelete: 'cascade' }),
+  redirectUri: text('redirect_uri').notNull(),
+  codeChallenge: text('code_challenge').notNull(),
+  scope: text('scope'),
+  resource: text('resource'),
+  kedaluwarsaAt: timestamp('kedaluwarsa_at', { withTimezone: true }).notNull(),
+  dipakaiAt: timestamp('dipakai_at', { withTimezone: true }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+/**
+ * Koneksi OAuth (satu baris per persetujuan): access token 1 jam dan refresh token 90 hari yang dirotasi setiap dipakai.
+ * Yang disimpan hanya hash token. Dicabut lewat Panel dosen → Koneksi MCP.
+ */
+export const oauthToken = pgTable(
+  'oauth_token',
+  {
+    id: serial('id').primaryKey(),
+    dosenId: integer('dosen_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    clientId: text('client_id').notNull(),
+    namaKlien: text('nama_klien'),
+    scope: text('scope'),
+    resource: text('resource'),
+    accessHash: text('access_hash').notNull().unique(),
+    accessKedaluwarsaAt: timestamp('access_kedaluwarsa_at', { withTimezone: true }).notNull(),
+    refreshHash: text('refresh_hash').notNull().unique(),
+    refreshKedaluwarsaAt: timestamp('refresh_kedaluwarsa_at', { withTimezone: true }).notNull(),
+    lastUsedAt: timestamp('last_used_at', { withTimezone: true }),
+    revokedAt: timestamp('revoked_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index('oauth_token_dosen_idx').on(t.dosenId)],
+);
+
+/**
  * Penilaian agent/dosen: apakah catatan revisi dari bimbingan sebelumnya sudah diperbaiki di versi baru.
  * Dipakai untuk aturan approve: setiap sub bab harus > 70% catatannya diperbaiki.
  */

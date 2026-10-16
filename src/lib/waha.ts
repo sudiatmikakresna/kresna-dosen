@@ -36,8 +36,58 @@ export async function statusSesi(): Promise<StatusSesi> {
   }
 }
 
-export async function kirimTeks(chatId: string, text: string) {
-  await panggil('/api/sendText', { method: 'POST', body: { session: sesi(), chatId, text, linkPreview: false } });
+export async function kirimTeks(chatId: string, text: string, balasKe?: string) {
+  return panggil<Record<string, unknown>>('/api/sendText', {
+    method: 'POST',
+    body: { session: sesi(), chatId, text, linkPreview: false, ...(balasKe ? { reply_to: balasKe } : {}) },
+  });
+}
+
+/** Ubah nomor (08xx, +62xx, 62xx) atau chat ID menjadi chat ID WhatsApp. */
+export function chatIdDari(tujuan: string) {
+  const t = tujuan.trim();
+  if (t.includes('@')) return t;
+  let n = t.replace(/[^\d]/g, '');
+  if (n.startsWith('0')) n = '62' + n.slice(1);
+  if (n.length < 8 || n.length > 16) throw new Error(`Nomor tidak valid: ${tujuan}`);
+  return `${n}@c.us`;
+}
+
+/** Cek apakah nomor terdaftar di WhatsApp; chatId dari WAHA bisa berbeda dari tebakan (mis. nomor lama tanpa 9). */
+export async function cekNomor(nomor: string) {
+  const phone = chatIdDari(nomor).split('@')[0];
+  const r = await panggil<{ numberExists?: boolean; chatId?: string }>(
+    `/api/contacts/check-exists?phone=${encodeURIComponent(phone)}&session=${encodeURIComponent(sesi())}`,
+    { timeoutMs: 15000 },
+  );
+  return { nomor: phone, terdaftar: r.numberExists === true, chatId: r.chatId ?? null };
+}
+
+export type RingkasChat = { id: string; nama: string | null; grup: boolean; pesanTerakhir: { waktu: Date | null; dariSaya: boolean; teks: string } | null };
+
+/** Daftar chat terbaru (pribadi dan grup) beserta pesan terakhirnya. */
+export async function daftarChat(batas = 20, offset = 0): Promise<RingkasChat[]> {
+  const res = await panggil<unknown>(`/api/${encodeURIComponent(sesi())}/chats/overview?limit=${batas}&offset=${offset}`, { timeoutMs: 20000 });
+  const daftar = Array.isArray(res) ? res : [];
+  return daftar.flatMap((c) => {
+    const r = c as Record<string, unknown>;
+    const id = teksId(r.id);
+    if (!id) return [];
+    const akhir = r.lastMessage ? bacaPesan(r.lastMessage) : null;
+    return [
+      {
+        id,
+        nama: typeof r.name === 'string' && r.name.trim() ? r.name.trim() : null,
+        grup: id.endsWith('@g.us'),
+        pesanTerakhir: akhir && { waktu: akhir.waktu, dariSaya: akhir.dariSaya, teks: akhir.teks || (akhir.lampiran ? '[lampiran]' : '') },
+      },
+    ];
+  });
+}
+
+/** Tandai pesan belum dibaca di satu chat sebagai sudah dibaca (centang biru). */
+export async function tandaiDibaca(chatId: string) {
+  return panggil<unknown>(`/api/${encodeURIComponent(sesi())}/chats/${encodeURIComponent(chatId)}/messages/read`, { method: 'POST', body: {} });
 }
 
 /** Nama grup dari WAHA. Bentuk respons berbeda antar-engine, jadi beberapa kunci dicoba. */

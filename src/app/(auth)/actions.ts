@@ -53,7 +53,9 @@ export async function masukDosen(_: FormState, form: FormData): Promise<FormStat
     return { error: 'Username atau password salah.' };
   }
   await buatSesi(user);
-  redirect('/dosen');
+  // Kembali ke layar persetujuan connector bila login dimulai dari sana; tujuan lain diabaikan (open redirect).
+  const next = String(form.get('next') ?? '');
+  redirect(next.startsWith('/oauth/izin?') ? next : '/dosen');
 }
 
 export async function adaDosen() {
@@ -84,7 +86,9 @@ export async function setupDosen(_: FormState, form: FormData): Promise<FormStat
     })
     .returning();
   await buatSesi(user);
-  redirect('/dosen');
+  // Kembali ke layar persetujuan connector bila login dimulai dari sana; tujuan lain diabaikan (open redirect).
+  const next = String(form.get('next') ?? '');
+  redirect(next.startsWith('/oauth/izin?') ? next : '/dosen');
 }
 
 export async function keluar() {

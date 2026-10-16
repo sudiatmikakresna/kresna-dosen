@@ -57,6 +57,13 @@
       "when": 1792166474838,
       "tag": "0007_wa_pesan",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1792167597831,
+      "tag": "0008_oauth",
+      "breakpoints": true
     }
   ]
 }

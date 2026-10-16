@@ -92,6 +92,31 @@ Skill Claude Code di `.claude/skills/review-skripsi/` mereview semua berkas di a
   `bimbingan` supaya sesi terjadwal tidak tertahan menunggu persetujuan.
 - Revisi versi sebelumnya dicek ulang; yang belum diperbaiki ditulis lagi sebagai catatan wajib.
 
+## Connector Claude chat (OAuth): WhatsApp dan Bimbingan
+
+Dua server MCP bisa dipasang sebagai **custom connector** di Claude chat (claude.ai, Desktop, mobile) tanpa token:
+
+| Connector | URL | Isi |
+| --- | --- | --- |
+| WhatsApp (WAHA) | `https://kresna-dosen.vercel.app/api/waha/mcp` | `status_whatsapp`, `daftar_chat`, `daftar_grup`, `baca_pesan`, `riwayat_grup_tersimpan`, `cek_nomor`, `kirim_pesan`, `tandai_dibaca` |
+| Bimbingan Skripsi | `https://kresna-dosen.vercel.app/api/mcp` | tool review di atas |
+
+Pasang: Claude → **Customize → Connectors → Add → Custom → Web** → isi nama dan URL → **Add** → **Connect**.
+Claude membuka `/oauth/izin`; masuk sebagai dosen lalu klik **Izinkan**. Koneksi aktif terlihat dan bisa dicabut di
+**Panel dosen → Koneksi MCP**.
+
+Cara kerjanya (aplikasi menjadi server otorisasi OAuth 2.1 sendiri, tanpa layanan luar):
+
+- Discovery: `401` + `WWW-Authenticate: Bearer resource_metadata=…` →
+  `/.well-known/oauth-protected-resource/api/waha/mcp` (atau `/api/mcp`) → `/.well-known/oauth-authorization-server`.
+- Klien: Client ID Metadata Document dari claude.ai/claude.com, atau Dynamic Client Registration di `/api/oauth/register`.
+  Hanya redirect `https://claude.ai/…`, `https://claude.com/…`, dan loopback Claude Code yang diterima.
+- Authorization code + PKCE S256 (`/oauth/izin`), token di `/api/oauth/token` (form-urlencoded). Access token 1 jam,
+  refresh token 90 hari yang dirotasi setiap dipakai. Token terikat ke server MCP yang disetujui (parameter `resource`).
+  Database hanya menyimpan hash token (`oauth_klien`, `oauth_kode`, `oauth_token`).
+- Token panel `bmb_…` tetap berlaku untuk Claude Code lewat header `Authorization` (`.mcp.json`).
+- `kirim_pesan` mengirim atas nama nomor WhatsApp dosen. Biarkan tool itu pada **Ask each time** di pengaturan connector.
+
 ## Notifikasi Telegram
 
 Setiap berkas baru (upload atau link Google Docs) dikirim ke Telegram dosen: nama, NIM, jenis dan versi,
@@ -177,4 +202,4 @@ Mengubah skema: edit `src/db/schema.ts`, lalu `npm run db:generate` untuk membua
 - Berkas disimpan di Google Drive dosen dan tidak dibagikan ke siapa pun. Mahasiswa hanya bisa membuka berkasnya sendiri lewat aplikasi.
 - Refresh token Google disimpan terenkripsi (AES-256-GCM, kunci diturunkan dari `SESSION_SECRET`). Mengganti `SESSION_SECRET` berarti Google Drive harus dihubungkan ulang.
 - Siapa saja bisa mendaftar sebagai mahasiswa dengan NIM. Dosen melihat semua mahasiswa yang terdaftar.
-- Token MCP disimpan dalam bentuk hash dan bisa dicabut kapan saja dari halaman Koneksi MCP.
+- Token MCP dan token OAuth connector disimpan dalam bentuk hash dan bisa dicabut kapan saja dari halaman Koneksi MCP.

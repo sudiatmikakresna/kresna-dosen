@@ -64,12 +64,13 @@ export function MasukForm() {
   );
 }
 
-export function MasukDosenForm() {
+export function MasukDosenForm({ next }: { next?: string }) {
   const [state, action] = useActionState(masukDosen, undefined);
   const [show, setShow] = useState(false);
   return (
     <form action={action}>
       <Galat state={state} />
+      {next && <input type="hidden" name="next" value={next} />}
       <div className="mb-3">
         <label htmlFor="username" className="form-label">Username</label>
         <input id="username" name="username" autoComplete="username" className="form-control" required />

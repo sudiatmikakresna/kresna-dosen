@@ -3,7 +3,8 @@ import { eq } from 'drizzle-orm';
 import { z } from 'zod';
 import { db, users } from '@/db';
 import { labelJenis, TAHAP } from '@/lib/labels';
-import { verifikasiToken } from '@/lib/mcp-token';
+import { verifikasiBearer } from '@/lib/mcp-auth';
+import { metadataPath } from '@/lib/oauth';
 import { driveViewUrl } from '@/lib/google';
 import { chatTelegram, esc, kirimTelegram, telegramSiap } from '@/lib/telegram';
 import { berkasDikirimBaruIni, kirimKeGrup } from '@/lib/wa-laporan';
@@ -335,15 +336,9 @@ const handler = createMcpHandler(
   { basePath: '/api', maxDuration: 60, disableSse: true },
 );
 
-const authHandler = withMcpAuth(
-  handler,
-  async (_req, bearerToken) => {
-    if (!bearerToken) return undefined;
-    const hasil = await verifikasiToken(bearerToken);
-    if (!hasil) return undefined;
-    return { token: bearerToken, clientId: `dosen:${hasil.dosen.id}`, scopes: ['revisi'], extra: { dosenId: hasil.dosen.id } };
-  },
-  { required: true },
-);
+const authHandler = withMcpAuth(handler, (_req, bearer) => verifikasiBearer(bearer, 'bimbingan'), {
+  required: true,
+  resourceMetadataPath: metadataPath('bimbingan'),
+});
 
 export { authHandler as GET, authHandler as POST, authHandler as DELETE };

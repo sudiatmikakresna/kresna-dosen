@@ -3,7 +3,7 @@
 import { and, eq } from 'drizzle-orm';
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
-import { db, mcpTokens, waGrup } from '@/db';
+import { db, mcpTokens, oauthToken, waGrup } from '@/db';
 import { wajibDosen } from '@/lib/auth';
 import { buatToken } from '@/lib/mcp-token';
 import { putuskan } from '@/lib/google';
@@ -180,6 +180,16 @@ export async function imporRiwayatWa(chatId: string) {
   }
   revalidatePath('/dosen/whatsapp/riwayat');
   redirect(`${dasar}&${q}`);
+}
+
+/** Cabut koneksi connector OAuth (mis. Claude chat); access dan refresh token langsung tidak berlaku. */
+export async function cabutKoneksiOauth(id: number) {
+  const dosen = await wajibDosen();
+  await db()
+    .update(oauthToken)
+    .set({ revokedAt: new Date() })
+    .where(and(eq(oauthToken.id, id), eq(oauthToken.dosenId, dosen.id)));
+  revalidatePath('/dosen/mcp');
 }
 
 /** Review semua berkas di antrian sekarang (mis. yang gagal); prosesnya lanjut di latar, hasilnya dikirim ke Telegram. */
