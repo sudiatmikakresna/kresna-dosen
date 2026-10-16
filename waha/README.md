@@ -5,7 +5,8 @@
 > pengujian atau sebagai cadangan.
 
 WAHA berjalan di laptop Anda. Cloudflare Tunnel membuka WAHA ke internet supaya aplikasi di Vercel bisa
-mengirim laporan hasil `/review-skripsi` ke grup WhatsApp (satu arah, lewat API `sendText`).
+mengirim laporan hasil `/review-skripsi` ke grup WhatsApp (lewat API `sendText`), dan WAHA mengirim pesan grup
+ke aplikasi lewat webhook.
 
 ```
 /review-skripsi ──► kresna-dosen.vercel.app ──► Cloudflare Tunnel ──► WAHA (laptop) ──► Grup WA
@@ -57,6 +58,34 @@ harus diperbarui lagi. Pakai pilihan A untuk pemakaian sehari-hari.
 3. Buka **Panel dosen → WhatsApp**, klik **Jadikan tujuan** pada grup itu, lalu **Kirim pesan tes ke grup**.
 
 Setelah itu setiap `/review-skripsi` dan review harian otomatis mengumumkan hasilnya ke grup.
+
+## Webhook pesan grup (riwayat di database)
+
+Supaya pesan grup tujuan tersimpan di aplikasi, WAHA mengirim event pesan ke aplikasi dengan tanda tangan HMAC.
+Tambahkan ke env WAHA (di VPS: `/opt/waha/.env.secrets`, di laptop: `waha/.env`), lalu recreate container
+(`docker compose up -d --force-recreate waha`):
+
+```
+WHATSAPP_HOOK_URL=https://kresna-dosen.vercel.app/api/whatsapp/webhook
+WHATSAPP_HOOK_EVENTS=message.any
+WHATSAPP_HOOK_HMAC_KEY=<kunci acak, openssl rand -hex 32>
+WHATSAPP_HOOK_RETRIES_POLICY=exponential
+WHATSAPP_HOOK_RETRIES_DELAY_SECONDS=5
+WHATSAPP_HOOK_RETRIES_ATTEMPTS=6
+```
+
+Isi kunci yang sama ke Vercel sebagai `WAHA_WEBHOOK_HMAC_KEY` (Production), lalu Redeploy. Aplikasi memverifikasi
+header `X-Webhook-Hmac` (HMAC-SHA512 atas body mentah) dan hanya menyimpan pesan dari grup tujuan laporan.
+
+Cek: kirim pesan di grup tujuan, lalu buka **Panel dosen → WhatsApp → Lihat riwayat**. Permintaan tanpa tanda
+tangan yang benar dibalas `401`:
+
+```bash
+curl -i -X POST https://kresna-dosen.vercel.app/api/whatsapp/webhook -d '{}'
+```
+
+Webhook global ini berlaku untuk semua session dan tidak tampil di `GET /api/sessions`. Bila WAHA dipindah ke server
+lain, cukup salin baris-baris di atas; riwayat lama tetap ada di database aplikasi.
 
 ## Memakai tunnel yang sama untuk aplikasi lain (mis. server bengkel)
 

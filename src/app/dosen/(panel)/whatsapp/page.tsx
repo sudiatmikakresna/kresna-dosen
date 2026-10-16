@@ -5,6 +5,7 @@ import { pilihGrupWa, tambahGrupWaManual, tesGrupWa } from '@/app/dosen/actions'
 import { SubmitButton } from '@/components/SubmitButton';
 import { waktu } from '@/lib/labels';
 import { daftarGrup, statusSesi, wahaSiap } from '@/lib/waha';
+import { ringkasanPesan, webhookSiap } from '@/lib/wa-pesan';
 
 export const metadata = { title: 'WhatsApp' };
 
@@ -28,6 +29,7 @@ export default async function WhatsAppPage({ searchParams }: { searchParams: Pro
     ...dariWaha.filter((g) => !status.has(g.id)).map((g) => ({ id: g.id, nama: g.nama, tujuan: false, terakhir: null })),
   ];
   const adaTujuan = tersimpan.some((g) => g.diizinkan);
+  const pesanMasuk = await ringkasanPesan();
 
   return (
     <>
@@ -68,6 +70,27 @@ export default async function WhatsAppPage({ searchParams }: { searchParams: Pro
                   {!adaTujuan && <p className="text-body-secondary mt-2 mb-0">Pilih minimal satu grup tujuan dulu.</p>}
                 </>
               )}
+            </div>
+          </div>
+          <div className="card mt-4">
+            <div className="card-header fw-semibold">Webhook pesan grup</div>
+            <div className="card-body small">
+              {webhookSiap() ? (
+                <p className="mb-2">
+                  <span className="badge text-bg-success me-1">OK</span>
+                  <code>WAHA_WEBHOOK_HMAC_KEY</code> diatur. {pesanMasuk.jumlah} pesan tersimpan
+                  {pesanMasuk.terakhir ? <>, terakhir {waktu(pesanMasuk.terakhir)}</> : null}.
+                </p>
+              ) : (
+                <p className="mb-2">
+                  <span className="badge text-bg-warning me-1">Belum</span>
+                  Atur <code>WAHA_WEBHOOK_HMAC_KEY</code> di Vercel, sama dengan <code>WHATSAPP_HOOK_HMAC_KEY</code> di WAHA.
+                </p>
+              )}
+              <p className="text-body-secondary mb-0">
+                WAHA mengirim setiap pesan ke <code>/api/whatsapp/webhook</code>. Hanya pesan dari grup tujuan yang disimpan; grup lain
+                (mis. grup kelas) diabaikan. Riwayat dibaca dari database, jadi tetap ada walaupun WAHA dipindah atau di-reset.
+              </p>
             </div>
           </div>
         </div>

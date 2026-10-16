@@ -132,6 +132,34 @@ export const waGrup = pgTable('wa_grup', {
 });
 
 /**
+ * Pesan grup WhatsApp tujuan laporan, disimpan dari webhook WAHA (event message.any, bertanda tangan HMAC).
+ * Pesan dari grup lain tidak disimpan. Riwayat tetap ada walaupun WAHA dipindah atau di-reset.
+ */
+export const waPesan = pgTable(
+  'wa_pesan',
+  {
+    id: serial('id').primaryKey(),
+    /** ID pesan dari WAHA, mis. false_1203...@g.us_3EB0..._123@lid. Unik supaya kiriman ulang webhook tidak ganda. */
+    messageId: text('message_id').notNull().unique(),
+    chatId: text('chat_id').notNull(),
+    /** Nama tampilan atau nomor pengirim; null untuk pesan dari nomor bot sendiri. */
+    pengirim: text('pengirim'),
+    /** ID WhatsApp pengirim apa adanya (@c.us atau @lid). */
+    pengirimId: text('pengirim_id'),
+    dariSaya: boolean('dari_saya').notNull().default(false),
+    teks: text('teks').notNull().default(''),
+    lampiran: boolean('lampiran').notNull().default(false),
+    /** Asal pesan: webhook (langsung) atau impor (disalin dari riwayat WAHA). */
+    sumber: text('sumber', { enum: ['webhook', 'impor'] }).notNull().default('webhook'),
+    waktu: timestamp('waktu', { withTimezone: true }).notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index('wa_pesan_chat_waktu_idx').on(t.chatId, t.waktu)],
+);
+
+export type WaPesan = typeof waPesan.$inferSelect;
+
+/**
  * Penilaian agent/dosen: apakah catatan revisi dari bimbingan sebelumnya sudah diperbaiki di versi baru.
  * Dipakai untuk aturan approve: setiap sub bab harus > 70% catatannya diperbaiki.
  */

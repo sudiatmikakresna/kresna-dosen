@@ -13,6 +13,7 @@ import { kirimKeGrup } from '@/lib/wa-laporan';
 import { waitUntil } from '@vercel/functions';
 import { reviewAntrian, reviewAiSiap } from '@/lib/review-ai';
 import { namaGrup } from '@/lib/waha';
+import { imporDariWaha } from '@/lib/wa-pesan';
 import { kirimRevisi, setRingkasan, tambahRevisi, ubahRevisi } from '@/lib/service';
 
 function segarkan(berkasId: number) {
@@ -164,6 +165,21 @@ export async function tesGrupWa() {
     q = 'error=' + encodeURIComponent((e as Error).message);
   }
   redirect(`/dosen/whatsapp?${q}`);
+}
+
+/** Salin pesan yang masih tersimpan di WAHA (mis. sebelum webhook aktif) ke database riwayat grup. */
+export async function imporRiwayatWa(chatId: string) {
+  await wajibDosen();
+  const dasar = `/dosen/whatsapp/riwayat?grup=${encodeURIComponent(chatId)}`;
+  let q: string;
+  try {
+    const { dibaca, baru } = await imporDariWaha(chatId);
+    q = `impor=${baru}&dibaca=${dibaca}`;
+  } catch (e) {
+    q = 'error=' + encodeURIComponent((e as Error).message);
+  }
+  revalidatePath('/dosen/whatsapp/riwayat');
+  redirect(`${dasar}&${q}`);
 }
 
 /** Review semua berkas di antrian sekarang (mis. yang gagal); prosesnya lanjut di latar, hasilnya dikirim ke Telegram. */

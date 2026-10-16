@@ -132,14 +132,30 @@ cron dan tanpa sesi Claude Code:
 
 Setiap kali `/review-skripsi` (atau Routine review harian) mengirim revisi, ringkasannya diumumkan ke grup
 WhatsApp mahasiswa lewat tool MCP `kirim_laporan_whatsapp`: nama, bab dan versi, serta keputusan. NIM dan isi catatan
-tidak dikirim ke grup. Alurnya satu arah; bot tidak membaca atau menjawab pesan grup.
+tidak dikirim ke grup. Bot tidak menjawab pesan grup, tetapi pesan grup tujuan dicatat (lihat di bawah).
 
 - WhatsApp terhubung lewat WAHA (engine GOWS) di VPS: `https://waha.kresna.blog`, session `default`.
   Folder `waha/` berisi konfigurasi Docker bila WAHA dijalankan sendiri (lokal atau server lain).
-- Environment variable Vercel: `WAHA_URL` (`https://waha.kresna.blog`), `WAHA_API_KEY`, dan `WAHA_SESSION`
-  (opsional, default `default`).
+- Environment variable Vercel: `WAHA_URL` (`https://waha.kresna.blog`), `WAHA_API_KEY`, `WAHA_WEBHOOK_HMAC_KEY`, dan
+  `WAHA_SESSION` (opsional, default `default`).
 - Pilih grup tujuan di **Panel dosen → WhatsApp**. Bila WAHA tidak terjangkau atau sesi logout, pengumuman gagal
   dan statusnya tercantum di laporan Telegram.
+
+### Riwayat pesan grup (webhook WAHA)
+
+```
+WAHA (VPS) ──POST event message.any + X-Webhook-Hmac (HMAC-SHA512)──► /api/whatsapp/webhook ──► tabel wa_pesan
+```
+
+- WAHA mengirim setiap pesan ke `https://kresna-dosen.vercel.app/api/whatsapp/webhook`. Endpoint menolak permintaan
+  tanpa tanda tangan HMAC yang cocok (401).
+- Hanya pesan dari grup **tujuan laporan** yang disimpan. Pesan dari grup lain (mis. grup kelas) dan chat pribadi
+  dibalas 200 tanpa disimpan. Kiriman ulang dengan ID pesan yang sama tidak membuat baris ganda.
+- **Panel dosen → WhatsApp → Lihat riwayat** membaca tabel `wa_pesan`, jadi riwayat tetap ada walaupun WAHA dipindah
+  atau di-reset. Tombol **Salin dari WAHA** di halaman itu menyalin pesan lama yang masih ada di WAHA (aman diulang).
+- Event `message.any` dipakai (bukan hanya `message`) supaya laporan bot dan pesan yang Anda kirim dari HP ikut tercatat.
+- Environment variable Vercel: `WAHA_WEBHOOK_HMAC_KEY`, nilainya sama dengan `WHATSAPP_HOOK_HMAC_KEY` di WAHA.
+  Konfigurasi WAHA: lihat `waha/README.md` bagian *Webhook pesan grup*.
 
 ## Google Docs
 

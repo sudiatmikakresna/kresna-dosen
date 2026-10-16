@@ -1,8 +1,8 @@
 import 'server-only';
 
 // WAHA berjalan di VPS (https://waha.kresna.blog); WAHA_URL adalah alamat itu.
-// Aplikasi hanya mengirim pesan ke WAHA (satu arah); tidak ada webhook masuk.
-const sesi = () => process.env.WAHA_SESSION || 'default';
+// Aplikasi mengirim laporan ke WAHA; WAHA mengirim balik event pesan ke /api/whatsapp/webhook (lihat wa-pesan.ts).
+export const sesi = () => process.env.WAHA_SESSION || 'default';
 const dasar = () => (process.env.WAHA_URL ?? '').replace(/\/$/, '');
 
 export const wahaSiap = () => !!process.env.WAHA_URL && !!process.env.WAHA_API_KEY;
@@ -51,13 +51,52 @@ export async function namaGrup(chatId: string) {
   }
 }
 
-export type PesanChat = { id: string; waktu: Date | null; pengirim: string | null; dariSaya: boolean; teks: string; lampiran: boolean };
+export type PesanChat = {
+  id: string;
+  /** Chat (grup) tempat pesan berada, bila bisa ditentukan dari payload. */
+  chatId: string | null;
+  waktu: Date | null;
+  pengirim: string | null;
+  pengirimId: string | null;
+  dariSaya: boolean;
+  teks: string;
+  lampiran: boolean;
+};
 
 const nomorDari = (v: unknown) => (typeof v === 'string' && v.includes('@') ? v.split('@')[0].split(':')[0] : null);
+const grupId = (v: unknown) => (typeof v === 'string' && v.endsWith('@g.us') ? v : null);
 
 /**
- * Pesan terakhir di satu chat, terbaru dulu. Hanya dibaca saat diminta; tidak ada yang disimpan di aplikasi.
- * GOWS menyimpan pesan sejak sesi ditautkan, jadi riwayat sebelum scan QR tidak ada.
+ * Ubah satu pesan WAHA (respons API chats/messages maupun payload webhook message/message.any) ke bentuk aplikasi.
+ * Bentuk _data berbeda antar-engine; kunci GOWS (Info.PushName, Info.SenderAlt, Info.Chat) dicoba lebih dulu.
+ */
+export function bacaPesan(p: unknown): PesanChat {
+  const r = (p ?? {}) as Record<string, unknown>;
+  const info = ((r._data as Record<string, unknown> | undefined)?.Info ?? {}) as Record<string, unknown>;
+  const dariSaya = r.fromMe === true;
+  const id = teksId(r.id) ?? `${r.timestamp}-${r.participant}`;
+  // ID pesan berformat {fromMe}_{chatId}_{messageId}[_{participant}], jadi chat juga bisa dibaca dari sana.
+  const chatId = grupId(r.from) ?? grupId(r.to) ?? grupId(info.Chat) ?? grupId(id.split('_')[1]);
+  // Anggota grup sering hanya punya ID tersembunyi (@lid); nomor aslinya, bila ada, di SenderAlt.
+  const nama = typeof info.PushName === 'string' && info.PushName.trim() ? info.PushName.trim() : null;
+  const nomor = [info.SenderAlt, r.participant, info.Sender].map((v) => (typeof v === 'string' && !v.endsWith('@lid') ? nomorDari(v) : null)).find(Boolean);
+  const pengirimId = [r.participant, info.Sender].find((v): v is string => typeof v === 'string' && v.includes('@')) ?? null;
+  const detik = typeof r.timestamp === 'number' ? r.timestamp : typeof r.timestamp === 'string' ? Number(r.timestamp) : NaN;
+  return {
+    id,
+    chatId,
+    waktu: Number.isFinite(detik) && detik > 0 ? new Date(detik * 1000) : null,
+    pengirim: dariSaya ? null : nama ?? nomor ?? null,
+    pengirimId,
+    dariSaya,
+    teks: typeof r.body === 'string' ? r.body : '',
+    lampiran: r.hasMedia === true,
+  };
+}
+
+/**
+ * Pesan terakhir di satu chat langsung dari WAHA, terbaru dulu. Hanya dipakai untuk menyalin riwayat lama ke database;
+ * halaman riwayat membaca tabel wa_pesan. GOWS menyimpan pesan sejak sesi ditautkan, jadi riwayat sebelum scan QR tidak ada.
  */
 export async function riwayatPesan(chatId: string, batas = 100): Promise<PesanChat[]> {
   const res = await panggil<unknown>(
@@ -66,22 +105,7 @@ export async function riwayatPesan(chatId: string, batas = 100): Promise<PesanCh
   );
   const daftar = Array.isArray(res) ? res : [];
   return daftar
-    .map((p) => {
-      const r = p as Record<string, unknown>;
-      const info = ((r._data as Record<string, unknown> | undefined)?.Info ?? {}) as Record<string, unknown>;
-      const dariSaya = r.fromMe === true;
-      // Anggota grup sering hanya punya ID tersembunyi (@lid); nomor aslinya, bila ada, di SenderAlt.
-      const nama = typeof info.PushName === 'string' && info.PushName.trim() ? info.PushName.trim() : null;
-      const nomor = [info.SenderAlt, r.participant, info.Sender].map((v) => (typeof v === 'string' && !v.endsWith('@lid') ? nomorDari(v) : null)).find(Boolean);
-      return {
-        id: teksId(r.id) ?? `${r.timestamp}-${r.participant}`,
-        waktu: typeof r.timestamp === 'number' ? new Date(r.timestamp * 1000) : null,
-        pengirim: dariSaya ? null : nama ?? nomor ?? null,
-        dariSaya,
-        teks: typeof r.body === 'string' ? r.body : '',
-        lampiran: r.hasMedia === true,
-      };
-    })
+    .map((p) => ({ ...bacaPesan(p), chatId }))
     .sort((a, b) => (b.waktu?.getTime() ?? 0) - (a.waktu?.getTime() ?? 0));
 }
 
