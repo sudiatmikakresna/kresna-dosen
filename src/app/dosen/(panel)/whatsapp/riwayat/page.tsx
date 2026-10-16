@@ -51,7 +51,7 @@ export default async function RiwayatGrupPage({
       {error && <div className="alert alert-danger text-break">{error}</div>}
       {!webhookSiap() && (
         <div className="alert alert-warning">
-          <code>WAHA_WEBHOOK_HMAC_KEY</code> belum diatur di Vercel, jadi pesan baru belum bisa diterima. Panduan: <code>waha/README.md</code>.
+          <code>WAHA_WEBHOOK_HMAC_KEY</code> belum diatur di Vercel, jadi pesan baru belum bisa diterima. Panduan: README bagian <em>Riwayat pesan grup</em>.
         </div>
       )}
 

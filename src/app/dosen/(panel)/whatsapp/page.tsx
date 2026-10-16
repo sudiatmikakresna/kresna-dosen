@@ -50,7 +50,7 @@ export default async function WhatsAppPage({ searchParams }: { searchParams: Pro
               {!siap ? (
                 <div className="alert alert-warning mb-0">
                   Atur <code>WAHA_URL</code> (alamat WAHA, mis. https://waha.kresna.blog) dan <code>WAHA_API_KEY</code> di environment variable Vercel, lalu
-                  redeploy. Panduan: <code>waha/README.md</code>.
+                  redeploy.
                 </div>
               ) : sesi?.error ? (
                 <div className="alert alert-danger mb-0">

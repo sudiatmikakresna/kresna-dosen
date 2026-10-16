@@ -168,8 +168,8 @@ Setiap kali `/review-skripsi` (atau Routine review harian) mengirim revisi, ring
 WhatsApp mahasiswa lewat tool MCP `kirim_laporan_whatsapp`: nama, bab dan versi, serta keputusan. NIM dan isi catatan
 tidak dikirim ke grup. Bot tidak menjawab pesan grup, tetapi pesan grup tujuan dicatat (lihat di bawah).
 
-- WhatsApp terhubung lewat WAHA (engine GOWS) di VPS: `https://waha.kresna.blog`, session `default`.
-  Folder `waha/` berisi konfigurasi Docker bila WAHA dijalankan sendiri (lokal atau server lain).
+- WhatsApp terhubung lewat WAHA (engine GOWS) di VPS: `https://waha.kresna.blog`, session `default`. Tidak ada WAHA
+  lokal lagi; konfigurasi Docker WAHA dikelola di VPS.
 - Environment variable Vercel: `WAHA_URL` (`https://waha.kresna.blog`), `WAHA_API_KEY`, `WAHA_WEBHOOK_HMAC_KEY`, dan
   `WAHA_SESSION` (opsional, default `default`).
 - Pilih grup tujuan di **Panel dosen → WhatsApp**. Bila WAHA tidak terjangkau atau sesi logout, pengumuman gagal
@@ -189,7 +189,23 @@ WAHA (VPS) ──POST event message.any + X-Webhook-Hmac (HMAC-SHA512)──► 
   atau di-reset. Tombol **Salin dari WAHA** di halaman itu menyalin pesan lama yang masih ada di WAHA (aman diulang).
 - Event `message.any` dipakai (bukan hanya `message`) supaya laporan bot dan pesan yang Anda kirim dari HP ikut tercatat.
 - Environment variable Vercel: `WAHA_WEBHOOK_HMAC_KEY`, nilainya sama dengan `WHATSAPP_HOOK_HMAC_KEY` di WAHA.
-  Konfigurasi WAHA: lihat `waha/README.md` bagian *Webhook pesan grup*.
+
+Konfigurasi webhook di WAHA (VPS: `/opt/waha/.env.secrets`), lalu recreate container
+(`docker compose up -d --force-recreate waha`):
+
+```
+WHATSAPP_HOOK_URL=https://kresna-dosen.vercel.app/api/whatsapp/webhook
+WHATSAPP_HOOK_EVENTS=message.any
+WHATSAPP_HOOK_HMAC_KEY=<kunci acak, openssl rand -hex 32>
+WHATSAPP_HOOK_RETRIES_POLICY=exponential
+WHATSAPP_HOOK_RETRIES_DELAY_SECONDS=5
+WHATSAPP_HOOK_RETRIES_ATTEMPTS=6
+```
+
+Cek: kirim pesan di grup tujuan, lalu buka **Panel dosen → WhatsApp → Lihat riwayat**. Permintaan tanpa tanda tangan
+yang benar dibalas `401` (`curl -i -X POST https://kresna-dosen.vercel.app/api/whatsapp/webhook -d '{}'`). Webhook
+global ini berlaku untuk semua session dan tidak tampil di `GET /api/sessions`. Bila WAHA dipindah ke server lain,
+cukup salin baris-baris di atas; riwayat lama tetap ada di database aplikasi.
 
 ## Google Docs
 
