@@ -109,10 +109,13 @@ Telegram sedang gangguan. Tautan "Tinjau di aplikasi" memakai `APP_URL`.
 
 ## Review otomatis lewat Claude API
 
-Setiap berkas baru langsung direview oleh aplikasi sendiri (`src/lib/review-ai.ts`), tanpa jadwal dan tanpa sesi Claude Code:
+Setiap berkas baru direview otomatis oleh aplikasi sendiri (`src/lib/review-ai.ts`) 10 menit setelah diunggah, tanpa
+cron dan tanpa sesi Claude Code:
 
-- Setelah unggahan tersimpan, `simpanBerkasBaru` memanggil `/api/review/[id]` (rahasia internal diturunkan dari
-  `SESSION_SECRET`). Endpoint itu langsung membalas 202 dan menjalankan review di latar dengan batas waktu 5 menit.
+- Setelah unggahan tersimpan, `simpanBerkasBaru` menjadwalkan pesan Upstash QStash tertunda 10 menit
+  (`REVIEW_JEDA_MENIT`) ke `/api/review/[id]`. Endpoint memverifikasi tanda tangan QStash, langsung membalas 202,
+  dan menjalankan review di latar dengan batas waktu 5 menit. Bila mahasiswa mengunggah versi baru dalam jeda itu,
+  versi lama sudah berstatus digantikan dan dilewati, jadi hanya versi terakhir yang direview.
 - PDF asli diunduh dari Google Drive dan dikirim ke Claude (`claude-opus-5-5`, effort `high`, structured output).
   Berkas non-PDF memakai teks hasil ekstraksi.
 - Catatan, penilaian perbaikan, aturan approve 70% per sub bab, kirim ke mahasiswa, notifikasi Telegram, dan pengumuman
@@ -120,7 +123,9 @@ Setiap berkas baru langsung direview oleh aplikasi sendiri (`src/lib/review-ai.t
   diberitahukan lewat Telegram.
 - **Panel dosen → Review Otomatis** menampilkan riwayat, token, dan perkiraan biaya, plus tombol untuk mereview ulang
   semua berkas di antrian (mis. yang masuk sebelum API key diatur).
-- Environment variable Vercel: `ANTHROPIC_API_KEY`, `APP_URL`, opsional `REVIEW_EFFORT`.
+- Environment variable Vercel: `ANTHROPIC_API_KEY`, `APP_URL`, `QSTASH_TOKEN`, `QSTASH_CURRENT_SIGNING_KEY`,
+  `QSTASH_NEXT_SIGNING_KEY` (otomatis lewat integrasi Upstash di Vercel Marketplace), opsional `REVIEW_JEDA_MENIT`
+  dan `REVIEW_EFFORT`.
 - `/review-skripsi` di Claude Code tetap bisa dipakai untuk review manual.
 
 ## Laporan ke grup WhatsApp

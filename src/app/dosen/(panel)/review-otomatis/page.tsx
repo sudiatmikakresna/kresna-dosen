@@ -5,6 +5,7 @@ import { mulaiReviewAi } from '@/app/dosen/actions';
 import { SubmitButton } from '@/components/SubmitButton';
 import { labelJenisPendek, waktu } from '@/lib/labels';
 import { MAKS_PER_RUN, MODEL_REVIEW, reviewAiSiap } from '@/lib/review-ai';
+import { JEDA_MENIT, qstashSiap } from '@/lib/picu-review';
 
 export const metadata = { title: 'Review Otomatis' };
 // Tombol "Review sekarang" menjalankan review di latar lewat server action halaman ini.
@@ -25,6 +26,7 @@ export default async function ReviewOtomatisPage({ searchParams }: { searchParam
   const { mulai, error } = await searchParams;
   const siap = reviewAiSiap();
   const urlSiap = !!(process.env.APP_URL || process.env.VERCEL_PROJECT_PRODUCTION_URL);
+  const antreanSiap = qstashSiap();
   const log = await db()
     .select({ r: reviewAi, jenis: berkas.jenis, versi: berkas.versi, fileName: berkas.fileName, nama: users.nama })
     .from(reviewAi)
@@ -40,7 +42,7 @@ export default async function ReviewOtomatisPage({ searchParams }: { searchParam
     <>
       <h1 className="h3 mb-1">Review otomatis (Claude API)</h1>
       <p className="text-body-secondary small mb-4">
-        Setiap berkas baru langsung direview begitu mahasiswa selesai mengunggah: aplikasi membaca PDF asli dari Google Drive lewat
+        Setiap berkas baru direview otomatis {JEDA_MENIT} menit setelah mahasiswa mengunggah (bila dalam jeda itu mahasiswa mengunggah versi baru, hanya versi terakhir yang direview): aplikasi membaca PDF asli dari Google Drive lewat
         Claude API ({MODEL_REVIEW}), menerapkan aturan approve 70% per sub bab, lalu mengirim revisi ke mahasiswa dan mengumumkan hasilnya
         di grup WhatsApp. Berkas yang dilewati atau gagal diberitahukan lewat Telegram dan bisa diulang dengan tombol di bawah
         (maks. {MAKS_PER_RUN} berkas sekali jalan).
@@ -60,7 +62,11 @@ export default async function ReviewOtomatisPage({ searchParams }: { searchParam
                 </li>
                 <li>
                   <span className={`badge me-2 ${urlSiap ? 'text-bg-success' : 'text-bg-danger'}`}>{urlSiap ? 'OK' : 'Belum'}</span>
-                  <code>APP_URL</code> di Vercel (untuk memicu review setelah unggah)
+                  <code>APP_URL</code> di Vercel (alamat yang dipanggil QStash)
+                </li>
+                <li>
+                  <span className={`badge me-2 ${antreanSiap ? 'text-bg-success' : 'text-bg-danger'}`}>{antreanSiap ? 'OK' : 'Belum'}</span>
+                  Upstash QStash (<code>QSTASH_TOKEN</code> dan signing key) untuk jeda {JEDA_MENIT} menit
                 </li>
               </ul>
               <form action={mulaiReviewAi}>

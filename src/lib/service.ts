@@ -4,7 +4,7 @@ import { and, asc, desc, eq, inArray, lt, ne } from 'drizzle-orm';
 import { aktivitas, berkas, db, revisi, users, type Berkas, type Revisi } from '@/db';
 import { labelJenisPendek, TAHAP, terpisah } from './labels';
 import { notifBerkasBaru, notifRevisiTerkirim } from './telegram';
-import { picuReview } from './picu-review';
+import { jadwalkanReview } from './picu-review';
 
 export type StatusBerkas = Berkas['status'];
 
@@ -53,7 +53,7 @@ export async function simpanBerkasBaru(
   );
   // Kirim notifikasi Telegram tanpa menunda respons ke mahasiswa.
   waitUntil(notifBerkasBaru(baru));
-  waitUntil(picuReview(baru.id));
+  waitUntil(jadwalkanReview(baru.id));
   return baru;
 }
 
