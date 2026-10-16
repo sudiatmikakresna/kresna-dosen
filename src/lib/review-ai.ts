@@ -117,6 +117,7 @@ export async function reviewBerkas(berkasId: number): Promise<HasilReview> {
   const dasar: HasilReview = { berkasId, nama: d.mahasiswa.nama, nim: d.mahasiswa.nim, label, status: 'dilewati', keputusan: null, pengecekanKe: null, wajib: 0, saran: 0, subBabKurang: [], alasan: null };
   const lewati = (alasan: string) => ({ ...dasar, alasan });
 
+  if (!['menunggu', 'draf'].includes(b.status)) return lewati(`status berkas sudah ${b.status}`);
   if (d.revisi.some((r) => r.status === 'draf')) return lewati('sudah ada catatan draf (dosen sedang mengerjakan)');
 
   // Kunci sederhana: lewati bila berkas ini sedang direview run lain dalam 10 menit terakhir.
@@ -252,14 +253,36 @@ export async function reviewBerkas(berkasId: number): Promise<HasilReview> {
 const tanggalPanjang = () =>
   new Intl.DateTimeFormat('id-ID', { timeZone: 'Asia/Makassar', weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }).format(new Date());
 
+function teksPengumuman(dikirim: HasilReview[]) {
+  const baris = dikirim.map((h) => `- ${h.nama} · ${h.label} · ${h.keputusan === 'disetujui' ? 'Disetujui ✅' : 'Perlu revisi'}`);
+  return `📋 *Hasil review berkas skripsi* — ${tanggalPanjang()}\n\n${baris.join('\n')}\n\nCatatan lengkap ada di aplikasi: menu *Berkas & Revisi*.`;
+}
+
+/**
+ * Review satu berkas yang baru diunggah (dipicu otomatis lewat /api/review/[id]). Bila revisi terkirim, umumkan
+ * di grup WhatsApp; bila dilewati, gagal, atau perlu keputusan dosen, beri tahu dosen lewat Telegram. Notifikasi
+ * Telegram untuk revisi yang terkirim sudah dikirim oleh kirimRevisi.
+ */
+export async function prosesBerkasBaru(berkasId: number) {
+  const h = await reviewBerkas(berkasId);
+  if (h.status === 'dikirim') {
+    await kirimKeGrup(teksPengumuman([h])).catch((e) => console.error('Gagal mengumumkan ke grup WhatsApp', e));
+  } else if (!(h.status === 'dilewati' && h.alasan?.startsWith('status berkas sudah'))) {
+    const judul = h.status === 'draf' ? '🗂 Review otomatis: perlu keputusan dosen' : h.status === 'gagal' ? '⚠️ Review otomatis gagal' : '⏭ Review otomatis dilewati';
+    await kirimTelegram(esc(`${judul}\n${h.nama} (${h.nim ?? '-'}) · ${h.label}\n${h.alasan ?? ''}`)).catch((e) => console.error(e));
+  }
+  return h;
+}
+
 /**
  * Review semua berkas di antrian (paling lama dulu, maks. MAKS_PER_RUN), lalu umumkan ke grup WhatsApp
- * (hanya bila ada yang dikirim) dan kirim laporan ke Telegram dosen. Dipanggil cron harian dan tombol di panel dosen.
+ * (hanya bila ada yang dikirim) dan kirim laporan ke Telegram dosen. Dipakai tombol di panel dosen,
+ * mis. untuk mengulang berkas yang gagal atau masuk sebelum API key diatur.
  */
-export async function jalankanReviewHarian() {
+export async function reviewAntrian() {
   const antrian = [...(await antrianReview())].sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
   if (antrian.length === 0) {
-    await kirimTelegram('Review harian: tidak ada berkas yang menunggu review hari ini.').catch((e) => console.error(e));
+    await kirimTelegram('Review antrian: tidak ada berkas yang menunggu review.').catch((e) => console.error(e));
     return { hasil: [] as HasilReview[], sisa: 0, whatsapp: 'tidak ada yang diumumkan' };
   }
   const giliran = antrian.slice(0, MAKS_PER_RUN);
@@ -268,10 +291,8 @@ export async function jalankanReviewHarian() {
 
   let whatsapp = 'tidak ada yang diumumkan';
   if (dikirim.length) {
-    const baris = dikirim.map((h) => `- ${h.nama} · ${h.label} · ${h.keputusan === 'disetujui' ? 'Disetujui ✅' : 'Perlu revisi'}`);
-    const teks = `📋 *Hasil review berkas skripsi* — ${tanggalPanjang()}\n\n${baris.join('\n')}\n\nCatatan lengkap ada di aplikasi: menu *Berkas & Revisi*.`;
     try {
-      const r = await kirimKeGrup(teks);
+      const r = await kirimKeGrup(teksPengumuman(dikirim));
       const gagal = r.filter((x) => !x.terkirim);
       whatsapp = gagal.length ? `gagal ke ${gagal.map((x) => `${x.grup} (${x.error})`).join(', ')}` : `terkirim ke ${r.map((x) => x.grup).join(', ')}`;
     } catch (e) {
@@ -291,7 +312,7 @@ export async function jalankanReviewHarian() {
   });
   const sisa = antrian.length - giliran.length;
   const laporan = [
-    'Review harian selesai (Claude API)',
+    'Review antrian selesai (Claude API)',
     ...baris,
     sisa > 0 ? `${sisa} berkas lain menunggu run berikutnya.` : null,
     `Grup WhatsApp: ${whatsapp}`,

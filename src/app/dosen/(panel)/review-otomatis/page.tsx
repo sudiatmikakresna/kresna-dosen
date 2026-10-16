@@ -24,7 +24,7 @@ const STATUS: Record<string, [string, string]> = {
 export default async function ReviewOtomatisPage({ searchParams }: { searchParams: Promise<{ mulai?: string; error?: string }> }) {
   const { mulai, error } = await searchParams;
   const siap = reviewAiSiap();
-  const cronSiap = !!process.env.CRON_SECRET;
+  const urlSiap = !!(process.env.APP_URL || process.env.VERCEL_PROJECT_PRODUCTION_URL);
   const log = await db()
     .select({ r: reviewAi, jenis: berkas.jenis, versi: berkas.versi, fileName: berkas.fileName, nama: users.nama })
     .from(reviewAi)
@@ -40,9 +40,10 @@ export default async function ReviewOtomatisPage({ searchParams }: { searchParam
     <>
       <h1 className="h3 mb-1">Review otomatis (Claude API)</h1>
       <p className="text-body-secondary small mb-4">
-        Setiap hari sekitar pukul 07.30 WITA, aplikasi mereview berkas di antrian langsung lewat Claude API ({MODEL_REVIEW}) dengan membaca PDF asli
-        dari Google Drive, menerapkan aturan approve 70% per sub bab, lalu mengirim revisi ke mahasiswa, laporan ke Telegram, dan pengumuman
-        ke grup WhatsApp. Maksimal {MAKS_PER_RUN} berkas per run.
+        Setiap berkas baru langsung direview begitu mahasiswa selesai mengunggah: aplikasi membaca PDF asli dari Google Drive lewat
+        Claude API ({MODEL_REVIEW}), menerapkan aturan approve 70% per sub bab, lalu mengirim revisi ke mahasiswa dan mengumumkan hasilnya
+        di grup WhatsApp. Berkas yang dilewati atau gagal diberitahukan lewat Telegram dan bisa diulang dengan tombol di bawah
+        (maks. {MAKS_PER_RUN} berkas sekali jalan).
       </p>
       {mulai && <div className="alert alert-success">Review dimulai. Hasilnya muncul di tabel di bawah dan dikirim ke Telegram dalam beberapa menit.</div>}
       {error && <div className="alert alert-danger">{error}</div>}
@@ -58,12 +59,12 @@ export default async function ReviewOtomatisPage({ searchParams }: { searchParam
                   <code>ANTHROPIC_API_KEY</code> di Vercel
                 </li>
                 <li>
-                  <span className={`badge me-2 ${cronSiap ? 'text-bg-success' : 'text-bg-danger'}`}>{cronSiap ? 'OK' : 'Belum'}</span>
-                  <code>CRON_SECRET</code> di Vercel (untuk jadwal harian)
+                  <span className={`badge me-2 ${urlSiap ? 'text-bg-success' : 'text-bg-danger'}`}>{urlSiap ? 'OK' : 'Belum'}</span>
+                  <code>APP_URL</code> di Vercel (untuk memicu review setelah unggah)
                 </li>
               </ul>
               <form action={mulaiReviewAi}>
-                <SubmitButton pendingText="Memulai…" className={`btn ${siap ? 'btn-primary' : 'btn-secondary'}`}>Review antrian sekarang</SubmitButton>
+                <SubmitButton pendingText="Memulai…" className={`btn ${siap ? 'btn-primary' : 'btn-secondary'}`}>Review ulang semua antrian</SubmitButton>
               </form>
             </div>
           </div>

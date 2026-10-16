@@ -11,7 +11,7 @@ import { deteksiChat, esc, kirimTelegram, putuskanTelegram, simpanChatManual } f
 import { redirect } from 'next/navigation';
 import { kirimKeGrup } from '@/lib/wa-laporan';
 import { waitUntil } from '@vercel/functions';
-import { jalankanReviewHarian, reviewAiSiap } from '@/lib/review-ai';
+import { reviewAntrian, reviewAiSiap } from '@/lib/review-ai';
 import { namaGrup } from '@/lib/waha';
 import { kirimRevisi, setRingkasan, tambahRevisi, ubahRevisi } from '@/lib/service';
 
@@ -166,10 +166,10 @@ export async function tesGrupWa() {
   redirect(`/dosen/whatsapp?${q}`);
 }
 
-/** Jalankan review otomatis sekarang; prosesnya lanjut di latar, hasilnya dikirim ke Telegram. */
+/** Review semua berkas di antrian sekarang (mis. yang gagal); prosesnya lanjut di latar, hasilnya dikirim ke Telegram. */
 export async function mulaiReviewAi() {
   await wajibDosen();
   if (!reviewAiSiap()) redirect('/dosen/review-otomatis?error=' + encodeURIComponent('ANTHROPIC_API_KEY belum diatur di Vercel.'));
-  waitUntil(jalankanReviewHarian().catch((e) => console.error('Review AI gagal', e)));
+  waitUntil(reviewAntrian().catch((e) => console.error('Review AI gagal', e)));
   redirect('/dosen/review-otomatis?mulai=1');
 }
