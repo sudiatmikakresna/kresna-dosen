@@ -211,15 +211,19 @@ cukup salin baris-baris di atas; riwayat lama tetap ada di database aplikasi.
 
 ```
 pesan grup ──webhook WAHA (HMAC)──► bot di-mention / pesan bot dibalas? grup bot aktif?
-          ──► Claude API (dokumen aktif + citations, prompt caching) ──► balasan (reply) ke penanya
+          ──► Claude API (dokumen aktif + citations, prompt caching; tool riwayat bimbingan) ──► balasan (reply) ke penanya
 ```
 
 - Aktifkan per grup di **Panel dosen → WhatsApp → Aktifkan bot**. Grup lain diabaikan. Saklar ini terpisah dari
   "Jadikan tujuan" (laporan review).
 - Unggah dokumen rujukan (PDF, DOCX, TXT, MD, maks. 4 MB, atau tempel teks) di **WhatsApp → Dokumen & log bot
   tanya-jawab** (`/dosen/whatsapp/bot`). Teks disimpan di tabel `bot_dokumen`; dokumen bisa dinonaktifkan tanpa dihapus.
-- Bot menjawab **hanya dari dokumen aktif** dan menyebut judul sumbernya. Bila jawabannya tidak ada di dokumen, bot
-  membalas penolakan tetap dan menyarankan bertanya ke dosen, tanpa menebak.
+- Bot menjawab **hanya dari dokumen aktif dan data riwayat bimbingan**, lalu menyebut sumbernya. Bila jawabannya tidak
+  ada di keduanya, bot membalas penolakan tetap dan menyarankan bertanya ke dosen, tanpa menebak.
+- Riwayat bimbingan dibaca lewat tool (`src/lib/bot-riwayat.ts`): `riwayat_bimbingan` (satu mahasiswa, cari nama) dan
+  `progres_semua_mahasiswa` (rekap semua). Semua anggota grup boleh menanyakan progres mahasiswa mana pun, tetapi datanya
+  ringkas seperti laporan grup: bab, versi, tanggal unggah/tanggapan, status, jumlah catatan, dan progres perbaikan per
+  sub bab. Isi catatan revisi, NIM, dan isi berkas tidak pernah dikirim ke Claude.
 - Pemicu: mention nomor bot (`@nomor`) atau membalas pesan bot. Pesan tanpa mention tidak dikirim ke Claude.
 - Batas: 5 pertanyaan per orang per 10 menit dan 100 per grup per hari. Webhook ulangan untuk pesan yang sama tidak
   menghasilkan jawaban ganda.

@@ -5,7 +5,7 @@ import { sesi } from '@/lib/waha';
 
 export const dynamic = 'force-dynamic';
 // Jawaban bot (Claude API) dikirim di latar lewat waitUntil.
-export const maxDuration = 120;
+export const maxDuration = 300;
 
 const EVENT_PESAN = new Set(['message', 'message.any']);
 

@@ -43,8 +43,9 @@ export default async function BotPage({ searchParams }: { searchParams: Promise<
       <h1 className="h3 mb-1">Bot tanya-jawab WhatsApp</h1>
       <p className="text-body-secondary small mb-4">
         Di grup yang bot-nya aktif, anggota bisa menyebut (mention) nomor WhatsApp ini atau membalas pesan bot untuk bertanya. Claude ({MODEL_BOT})
-        menjawab <strong>hanya berdasarkan dokumen aktif di bawah</strong> dan menyebut sumbernya. Pertanyaan di luar dokumen dijawab dengan
-        penolakan sopan. Maksimal 5 pertanyaan per orang per 10 menit dan 100 per grup per hari.
+        menjawab <strong>hanya berdasarkan dokumen aktif di bawah dan data riwayat bimbingan</strong> (progres semua mahasiswa: bab, versi,
+        tanggal, keputusan, jumlah catatan, progres perbaikan; tanpa isi catatan dan NIM), lalu menyebut sumbernya. Pertanyaan di luar
+        itu dijawab dengan penolakan sopan. Maksimal 5 pertanyaan per orang per 10 menit dan 100 per grup per hari.
       </p>
       {ok === 'dokumen' && <div className="alert alert-success">Dokumen ditambahkan dan langsung dipakai bot.</div>}
       {error && <div className="alert alert-danger">{error}</div>}
@@ -90,7 +91,7 @@ export default async function BotPage({ searchParams }: { searchParams: Promise<
           <div className="card mb-4">
             <div className="card-header fw-semibold">Dokumen</div>
             {dokumen.length === 0 ? (
-              <div className="card-body small text-body-secondary">Belum ada dokumen. Tanpa dokumen, bot hanya membalas bahwa belum ada rujukan.</div>
+              <div className="card-body small text-body-secondary">Belum ada dokumen. Tanpa dokumen, bot hanya bisa menjawab pertanyaan riwayat bimbingan.</div>
             ) : (
               <ul className="list-group list-group-flush">
                 {dokumen.map((d) => (
