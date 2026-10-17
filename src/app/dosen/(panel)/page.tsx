@@ -13,8 +13,8 @@ const FILTER: { id: string; label: string; test: (m: Mhs) => boolean }[] = [
   { id: 'idle', label: 'Tidak aktif', test: (m) => m.tidakAktif },
 ];
 
-export default async function DaftarMahasiswaPage({ searchParams }: { searchParams: Promise<{ filter?: string; q?: string }> }) {
-  const { filter = 'semua', q = '' } = await searchParams;
+export default async function DaftarMahasiswaPage({ searchParams }: { searchParams: Promise<{ filter?: string; q?: string; ok?: string; error?: string }> }) {
+  const { filter = 'semua', q = '', ok, error } = await searchParams;
   const semua = await daftarMahasiswa();
   const aktif = FILTER.find((f) => f.id === filter) ?? FILTER[0];
   const cari = q.trim().toLowerCase();
@@ -37,6 +37,8 @@ export default async function DaftarMahasiswaPage({ searchParams }: { searchPara
           </div>
         </form>
       </div>
+      {ok && <div className="alert alert-success">{ok}</div>}
+      {error && <div className="alert alert-danger">{error}</div>}
 
       <div className="row g-3 mb-4">
         <div className="col-6 col-md-3"><div className="card h-100"><div className="card-body">

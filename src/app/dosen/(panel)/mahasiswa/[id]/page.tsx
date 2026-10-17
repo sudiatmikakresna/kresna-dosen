@@ -5,12 +5,15 @@ import { db, users } from '@/db';
 import { labelJenisPendek, status, waktu } from '@/lib/labels';
 import { aktivitasMahasiswa, berkasMahasiswa, tahapDari } from '@/lib/service';
 import { BerkasTable } from '@/components/BerkasTable';
+import { SubmitButton } from '@/components/SubmitButton';
+import { hapusMahasiswa } from '@/app/dosen/actions';
 import { StatusBadge } from '@/components/StatusBadge';
 
 export const metadata = { title: 'Riwayat Mahasiswa' };
 
-export default async function RiwayatMahasiswa({ params }: { params: Promise<{ id: string }> }) {
+export default async function RiwayatMahasiswa({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ error?: string }> }) {
   const id = Number((await params).id);
+  const { error } = await searchParams;
   const [m] = await db().select().from(users).where(eq(users.id, id)).limit(1);
   if (!m || m.role !== 'mahasiswa') notFound();
   const [daftar, log] = await Promise.all([berkasMahasiswa(id), aktivitasMahasiswa(id, 30)]);
@@ -25,6 +28,7 @@ export default async function RiwayatMahasiswa({ params }: { params: Promise<{ i
       </nav>
       <h1 className="h3 mb-1">{m.nama}</h1>
       <div className="text-body-secondary small mb-4"><span className="font-monospace">{m.nim}</span> · {m.judulSkripsi ?? 'Judul skripsi belum diisi'}</div>
+      {error && <div className="alert alert-danger">{error}</div>}
 
       <div className="card mb-4">
         <div className="card-header fw-semibold">Kemajuan per tahap</div>
@@ -62,6 +66,33 @@ export default async function RiwayatMahasiswa({ params }: { params: Promise<{ i
               ))}
             </ul>
           </div>
+        </div>
+      </div>
+
+      <div className="card border-danger mt-4">
+        <div className="card-header fw-semibold text-danger">Hapus mahasiswa</div>
+        <div className="card-body small">
+          <p className="mb-2">
+            Menghapus akun <strong>{m.nama}</strong> beserta {daftar.length} berkas, semua catatan revisi, riwayat bimbingan, dan log review
+            otomatisnya. Tindakan ini <strong>tidak bisa dibatalkan</strong>.
+          </p>
+          <form action={hapusMahasiswa.bind(null, m.id)} className="d-grid gap-2" style={{ maxWidth: 420 }}>
+            <label htmlFor="konfirmasi" className="form-label mb-0">
+              Ketik NIM <span className="font-monospace fw-semibold">{m.nim}</span> untuk konfirmasi
+            </label>
+            <input id="konfirmasi" name="konfirmasi" className="form-control form-control-sm font-monospace" autoComplete="off" required />
+            {m.driveFolderId && (
+              <div className="form-check">
+                <input className="form-check-input" type="checkbox" id="buangDrive" name="buangDrive" />
+                <label className="form-check-label" htmlFor="buangDrive">
+                  Pindahkan juga folder Google Drive-nya ke Sampah (bisa dipulihkan dari Drive selama 30 hari)
+                </label>
+              </div>
+            )}
+            <div>
+              <SubmitButton className="btn btn-sm btn-danger" pendingText="Menghapus…">Hapus mahasiswa ini</SubmitButton>
+            </div>
+          </form>
         </div>
       </div>
     </>

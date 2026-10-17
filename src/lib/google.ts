@@ -204,6 +204,16 @@ export async function infoFile(fileId: string) {
   return (await res.json()) as { id: string; name: string; size?: string; mimeType: string; parents?: string[] };
 }
 
+/** Pindahkan file/folder ke Sampah Drive (masih bisa dipulihkan dari Drive selama 30 hari). */
+export async function buangKeSampah(fileId: string) {
+  const res = await gfetch(`/drive/v3/files/${encodeURIComponent(fileId)}?supportsAllDrives=true`, {
+    method: 'PATCH',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ trashed: true }),
+  });
+  if (!res.ok && res.status !== 404) await gagal(res, 'memindahkan ke Sampah');
+}
+
 export async function unduhFile(fileId: string) {
   const res = await gfetch(`/drive/v3/files/${encodeURIComponent(fileId)}?alt=media&supportsAllDrives=true`);
   if (!res.ok) await gagal(res, 'mengunduh file');

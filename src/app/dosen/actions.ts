@@ -3,10 +3,10 @@
 import { and, eq } from 'drizzle-orm';
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
-import { botDokumen, db, mcpTokens, oauthToken, waGrup } from '@/db';
+import { botDokumen, db, mcpTokens, oauthToken, users, waGrup } from '@/db';
 import { wajibDosen } from '@/lib/auth';
 import { buatToken } from '@/lib/mcp-token';
-import { putuskan } from '@/lib/google';
+import { buangKeSampah, putuskan } from '@/lib/google';
 import { deteksiChat, esc, kirimTelegram, putuskanTelegram, simpanChatManual } from '@/lib/telegram';
 import { redirect } from 'next/navigation';
 import { kirimKeGrup } from '@/lib/wa-laporan';
@@ -238,4 +238,31 @@ export async function hapusDokumenBot(id: number) {
   await wajibDosen();
   await db().delete(botDokumen).where(eq(botDokumen.id, id));
   revalidatePath('/dosen/whatsapp/bot');
+}
+
+/**
+ * Hapus akun mahasiswa beserta semua berkas, catatan revisi, aktivitas, dan log review-nya (cascade).
+ * Dosen wajib mengetik NIM sebagai konfirmasi. Folder Drive hanya dipindah ke Sampah bila dicentang.
+ */
+export async function hapusMahasiswa(id: number, form: FormData) {
+  await wajibDosen();
+  const [m] = await db().select().from(users).where(and(eq(users.id, id), eq(users.role, 'mahasiswa'))).limit(1);
+  if (!m) redirect('/dosen?error=' + encodeURIComponent('Mahasiswa tidak ditemukan.'));
+  const ketik = String(form.get('konfirmasi') ?? '').trim();
+  if (!ketik || ketik !== (m.nim ?? '')) {
+    redirect(`/dosen/mahasiswa/${id}?error=` + encodeURIComponent('NIM konfirmasi tidak cocok. Mahasiswa tidak dihapus.'));
+  }
+  let catatanDrive = '';
+  if (form.get('buangDrive') === 'on' && m.driveFolderId) {
+    try {
+      await buangKeSampah(m.driveFolderId);
+      catatanDrive = ' Folder Google Drive-nya dipindah ke Sampah.';
+    } catch (e) {
+      console.error('Gagal memindahkan folder Drive mahasiswa ke Sampah', e);
+      catatanDrive = ' Folder Google Drive-nya gagal dipindah ke Sampah; hapus manual di Drive bila perlu.';
+    }
+  }
+  await db().delete(users).where(eq(users.id, m.id));
+  revalidatePath('/dosen');
+  redirect('/dosen?ok=' + encodeURIComponent(`${m.nama} (${m.nim}) dan seluruh riwayat bimbingannya sudah dihapus.${catatanDrive}`));
 }
