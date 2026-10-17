@@ -213,21 +213,13 @@ export async function aturBotGrup(chatId: string, nama: string | null, botAktif:
 /** Tambah dokumen rujukan bot dari file (PDF/DOCX/TXT/MD) atau teks yang ditempel. */
 export async function tambahDokumenBot(form: FormData) {
   await wajibDosen();
-  const { ekstrakTeks } = await import('@/lib/extract');
   const { BATAS_KARAKTER_DOKUMEN, dokumenAktif } = await import('@/lib/bot-wa');
+  // Teks PDF/DOCX diekstrak di browser (FormDokumen) supaya file besar tidak melewati batas body Vercel.
   const judul = String(form.get('judul') ?? '').trim().slice(0, 200);
-  const file = form.get('file');
-  let teks = String(form.get('teks') ?? '').trim();
-  let namaFile: string | null = null;
+  const teks = String(form.get('teks') ?? '').trim();
+  const namaFile = String(form.get('namaFile') ?? '').trim().slice(0, 200) || null;
   const gagal = (pesan: string) => redirect('/dosen/whatsapp/bot?error=' + encodeURIComponent(pesan));
   if (!judul) gagal('Judul dokumen wajib diisi.');
-  if (file instanceof File && file.size > 0) {
-    namaFile = file.name;
-    const buf = Buffer.from(await file.arrayBuffer());
-    const kecil = file.name.toLowerCase();
-    teks = (kecil.endsWith('.txt') || kecil.endsWith('.md') ? buf.toString('utf8') : (await ekstrakTeks(buf, file.name)) ?? '').trim();
-    if (!teks) gagal('Teks tidak bisa dibaca dari file ini. Gunakan PDF hasil ekspor (bukan scan), DOCX, TXT, atau tempel teksnya.');
-  }
   if (!teks) gagal('Unggah file atau tempel isi dokumen.');
   const total = (await dokumenAktif()).reduce((n, d) => n + d.teks.length, 0) + teks.length;
   if (total > BATAS_KARAKTER_DOKUMEN) gagal(`Total dokumen aktif melebihi ${BATAS_KARAKTER_DOKUMEN.toLocaleString('id-ID')} karakter. Nonaktifkan dokumen lain dulu.`);

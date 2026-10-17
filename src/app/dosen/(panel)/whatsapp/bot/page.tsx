@@ -1,7 +1,8 @@
 import Link from 'next/link';
 import { asc, desc, eq } from 'drizzle-orm';
 import { botDokumen, botTanya, db, waGrup } from '@/db';
-import { aturDokumenBot, hapusDokumenBot, tambahDokumenBot } from '@/app/dosen/actions';
+import { aturDokumenBot, hapusDokumenBot } from '@/app/dosen/actions';
+import { FormDokumen } from './FormDokumen';
 import { SubmitButton } from '@/components/SubmitButton';
 import { waktu } from '@/lib/labels';
 import { BATAS_KARAKTER_DOKUMEN, MODEL_BOT, botSiap } from '@/lib/bot-wa';
@@ -73,15 +74,7 @@ export default async function BotPage({ searchParams }: { searchParams: Promise<
           <div className="card">
             <div className="card-header fw-semibold">Tambah dokumen</div>
             <div className="card-body">
-              <form action={tambahDokumenBot}>
-                <label htmlFor="judul" className="form-label small">Judul (disebut sebagai sumber jawaban)</label>
-                <input id="judul" name="judul" className="form-control form-control-sm mb-2" placeholder="mis. Panduan Skripsi 2026" required maxLength={200} />
-                <label htmlFor="file" className="form-label small">File PDF, DOCX, TXT, atau MD (maks. 4 MB)</label>
-                <input id="file" name="file" type="file" accept=".pdf,.docx,.txt,.md" className="form-control form-control-sm mb-2" />
-                <label htmlFor="teks" className="form-label small">…atau tempel isinya</label>
-                <textarea id="teks" name="teks" rows={5} className="form-control form-control-sm mb-2" placeholder="Bila file diunggah, kolom ini diabaikan." />
-                <SubmitButton className="btn btn-primary btn-sm" pendingText="Membaca dokumen…">Tambah dokumen</SubmitButton>
-              </form>
+              <FormDokumen batasKarakter={BATAS_KARAKTER_DOKUMEN} />
               <p className="small text-body-secondary mt-2 mb-0">Jangan masukkan data pribadi mahasiswa: isi dokumen bisa dikutip bot di grup.</p>
             </div>
           </div>

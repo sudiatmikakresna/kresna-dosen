@@ -216,7 +216,7 @@ pesan grup ──webhook WAHA (HMAC)──► bot di-mention / pesan bot dibalas
 
 - Aktifkan per grup di **Panel dosen → WhatsApp → Aktifkan bot**. Grup lain diabaikan. Saklar ini terpisah dari
   "Jadikan tujuan" (laporan review).
-- Unggah dokumen rujukan (PDF, DOCX, TXT, MD, maks. 4 MB, atau tempel teks) di **WhatsApp → Dokumen & log bot
+- Unggah dokumen rujukan (PDF, DOCX, TXT, MD sampai 100 MB, atau tempel teks; teks diekstrak di browser sehingga file besar tidak terkena batas body Vercel, dan PDF hasil scan ditolak) di **WhatsApp → Dokumen & log bot
   tanya-jawab** (`/dosen/whatsapp/bot`). Teks disimpan di tabel `bot_dokumen`; dokumen bisa dinonaktifkan tanpa dihapus.
 - Bot menjawab **hanya dari dokumen aktif dan data riwayat bimbingan**, lalu menyebut sumbernya. Bila jawabannya tidak
   ada di keduanya, bot membalas penolakan tetap dan menyarankan bertanya ke dosen, tanpa menebak.
