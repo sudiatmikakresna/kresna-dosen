@@ -127,6 +127,8 @@ export const waGrup = pgTable('wa_grup', {
   chatId: text('chat_id').primaryKey(),
   nama: text('nama'),
   diizinkan: boolean('diizinkan').notNull().default(false),
+  /** Bot tanya-jawab (RAG) menjawab mention di grup ini. Terpisah dari tujuan laporan. */
+  botAktif: boolean('bot_aktif').notNull().default(false),
   terakhirAt: timestamp('terakhir_at', { withTimezone: true }).notNull().defaultNow(),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 });
@@ -269,4 +271,37 @@ export const loginGagal = pgTable(
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [index('login_gagal_username_idx').on(t.username, t.createdAt), index('login_gagal_ip_idx').on(t.ip, t.createdAt)],
+);
+
+/** Dokumen sumber jawaban bot WhatsApp. Bot hanya menjawab berdasarkan dokumen yang aktif. */
+export const botDokumen = pgTable('bot_dokumen', {
+  id: serial('id').primaryKey(),
+  judul: text('judul').notNull(),
+  namaFile: text('nama_file'),
+  teks: text('teks').notNull(),
+  aktif: boolean('aktif').notNull().default(true),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+/** Log pertanyaan ke bot WhatsApp. messageId unik mencegah jawaban ganda saat WAHA mengulang webhook. */
+export const botTanya = pgTable(
+  'bot_tanya',
+  {
+    id: serial('id').primaryKey(),
+    messageId: text('message_id').notNull().unique(),
+    chatId: text('chat_id').notNull(),
+    pengirim: text('pengirim'),
+    pengirimId: text('pengirim_id'),
+    pertanyaan: text('pertanyaan').notNull(),
+    jawaban: text('jawaban'),
+    status: text('status', { enum: ['diproses', 'dijawab', 'di_luar_topik', 'dibatasi', 'gagal'] }).notNull().default('diproses'),
+    sumber: text('sumber'),
+    alasan: text('alasan'),
+    inputTokens: integer('input_tokens'),
+    outputTokens: integer('output_tokens'),
+    cacheReadTokens: integer('cache_read_tokens'),
+    durasiMs: integer('durasi_ms'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index('bot_tanya_pengirim_idx').on(t.pengirimId, t.createdAt), index('bot_tanya_chat_idx').on(t.chatId, t.createdAt)],
 );

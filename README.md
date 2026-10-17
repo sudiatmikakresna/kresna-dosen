@@ -207,6 +207,26 @@ yang benar dibalas `401` (`curl -i -X POST https://kresna-dosen.vercel.app/api/w
 global ini berlaku untuk semua session dan tidak tampil di `GET /api/sessions`. Bila WAHA dipindah ke server lain,
 cukup salin baris-baris di atas; riwayat lama tetap ada di database aplikasi.
 
+### Bot tanya-jawab di grup (RAG dari dokumen dosen)
+
+```
+pesan grup ──webhook WAHA (HMAC)──► bot di-mention / pesan bot dibalas? grup bot aktif?
+          ──► Claude API (dokumen aktif + citations, prompt caching) ──► balasan (reply) ke penanya
+```
+
+- Aktifkan per grup di **Panel dosen → WhatsApp → Aktifkan bot**. Grup lain diabaikan. Saklar ini terpisah dari
+  "Jadikan tujuan" (laporan review).
+- Unggah dokumen rujukan (PDF, DOCX, TXT, MD, maks. 4 MB, atau tempel teks) di **WhatsApp → Dokumen & log bot
+  tanya-jawab** (`/dosen/whatsapp/bot`). Teks disimpan di tabel `bot_dokumen`; dokumen bisa dinonaktifkan tanpa dihapus.
+- Bot menjawab **hanya dari dokumen aktif** dan menyebut judul sumbernya. Bila jawabannya tidak ada di dokumen, bot
+  membalas penolakan tetap dan menyarankan bertanya ke dosen, tanpa menebak.
+- Pemicu: mention nomor bot (`@nomor`) atau membalas pesan bot. Pesan tanpa mention tidak dikirim ke Claude.
+- Batas: 5 pertanyaan per orang per 10 menit dan 100 per grup per hari. Webhook ulangan untuk pesan yang sama tidak
+  menghasilkan jawaban ganda.
+- Semua pertanyaan, jawaban, status, dan pemakaian token tercatat di tabel `bot_tanya` dan tampil di halaman bot.
+- Environment variable: `ANTHROPIC_API_KEY` dan `WAHA_WEBHOOK_HMAC_KEY` (keduanya sudah dipakai fitur lain). Isi dokumen
+  dikirim ke Claude setiap pertanyaan dan di-cache 1 jam, jadi pertanyaan berikutnya dalam jam yang sama jauh lebih murah.
+
 ## Google Docs
 
 Mahasiswa harus mengatur berbagi ke *"Siapa saja yang memiliki link – Pelihat"*. Saat dikirim, sistem menyimpan **salinan PDF ke Google Drive dosen** dan teks dokumen sebagai versi tersebut, jadi revisi tidak bergeser walaupun dokumen asli terus diedit. Pratinjau menampilkan dokumen langsung, dengan tautan ke salinan PDF.

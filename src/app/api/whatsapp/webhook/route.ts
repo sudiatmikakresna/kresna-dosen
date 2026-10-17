@@ -1,7 +1,11 @@
+import { waitUntil } from '@vercel/functions';
+import { tanganiPesanBot } from '@/lib/bot-wa';
 import { hmacWebhookValid, simpanPesanWebhook, webhookSiap } from '@/lib/wa-pesan';
 import { sesi } from '@/lib/waha';
 
 export const dynamic = 'force-dynamic';
+// Jawaban bot (Claude API) dikirim di latar lewat waitUntil.
+export const maxDuration = 120;
 
 const EVENT_PESAN = new Set(['message', 'message.any']);
 
@@ -17,7 +21,7 @@ export async function POST(req: Request) {
     return Response.json({ error: 'Tanda tangan HMAC tidak valid.' }, { status: 401 });
   }
 
-  let ev: { event?: unknown; session?: unknown; payload?: unknown };
+  let ev: { event?: unknown; session?: unknown; payload?: unknown; me?: unknown };
   try {
     ev = JSON.parse(body);
   } catch {
@@ -25,6 +29,9 @@ export async function POST(req: Request) {
   }
   if (typeof ev.event !== 'string' || !EVENT_PESAN.has(ev.event)) return Response.json({ hasil: 'event_diabaikan' });
   if (typeof ev.session === 'string' && ev.session !== sesi()) return Response.json({ hasil: 'sesi_lain' });
+
+  // Bot tanya-jawab: hanya grup yang diaktifkan dan hanya bila bot di-mention; dedup per ID pesan di bot_tanya.
+  waitUntil(tanganiPesanBot(ev.payload, ev.me).catch((e) => console.error('Bot WhatsApp gagal', e)));
 
   try {
     return Response.json({ hasil: await simpanPesanWebhook(ev.payload) });

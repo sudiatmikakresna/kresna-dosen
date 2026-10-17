@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { desc } from 'drizzle-orm';
 import { db, waGrup } from '@/db';
-import { pilihGrupWa, tambahGrupWaManual, tesGrupWa } from '@/app/dosen/actions';
+import { aturBotGrup, pilihGrupWa, tambahGrupWaManual, tesGrupWa } from '@/app/dosen/actions';
 import { SubmitButton } from '@/components/SubmitButton';
 import { waktu } from '@/lib/labels';
 import { daftarGrup, statusSesi, wahaSiap } from '@/lib/waha';
@@ -25,8 +25,8 @@ export default async function WhatsAppPage({ searchParams }: { searchParams: Pro
   }
   const status = new Map(tersimpan.map((g) => [g.chatId, g]));
   const semua = [
-    ...tersimpan.map((g) => ({ id: g.chatId, nama: g.nama, tujuan: g.diizinkan, terakhir: g.terakhirAt })),
-    ...dariWaha.filter((g) => !status.has(g.id)).map((g) => ({ id: g.id, nama: g.nama, tujuan: false, terakhir: null })),
+    ...tersimpan.map((g) => ({ id: g.chatId, nama: g.nama, tujuan: g.diizinkan, bot: g.botAktif, terakhir: g.terakhirAt })),
+    ...dariWaha.filter((g) => !status.has(g.id)).map((g) => ({ id: g.id, nama: g.nama, tujuan: false, bot: false, terakhir: null })),
   ];
   const adaTujuan = tersimpan.some((g) => g.diizinkan);
   const pesanMasuk = await ringkasanPesan();
@@ -97,7 +97,10 @@ export default async function WhatsAppPage({ searchParams }: { searchParams: Pro
 
         <div className="col-lg-7">
           <div className="card">
-            <div className="card-header fw-semibold">Grup tujuan</div>
+            <div className="card-header fw-semibold d-flex justify-content-between align-items-center">
+              <span>Grup</span>
+              <Link href="/dosen/whatsapp/bot" className="small">Dokumen &amp; log bot tanya-jawab →</Link>
+            </div>
             {errorDaftar && <div className="card-body small text-danger border-bottom">Gagal membaca daftar grup dari WAHA: {errorDaftar}</div>}
             {semua.length === 0 ? (
               <div className="card-body small text-body-secondary">
@@ -115,11 +118,17 @@ export default async function WhatsAppPage({ searchParams }: { searchParams: Pro
                       </div>
                     </div>
                     {g.tujuan && <span className="badge text-bg-success">Tujuan laporan</span>}
+                    {g.bot && <span className="badge text-bg-info">Bot tanya-jawab</span>}
                     {g.tujuan && (
                       <Link href={`/dosen/whatsapp/riwayat?grup=${encodeURIComponent(g.id)}`} className="btn btn-sm btn-outline-primary">
                         Lihat riwayat
                       </Link>
                     )}
+                    <form action={aturBotGrup.bind(null, g.id, g.nama, !g.bot)}>
+                      <SubmitButton className={`btn btn-sm ${g.bot ? 'btn-outline-secondary' : 'btn-outline-info'}`}>
+                        {g.bot ? 'Matikan bot' : 'Aktifkan bot'}
+                      </SubmitButton>
+                    </form>
                     <form action={pilihGrupWa.bind(null, g.id, g.nama, !g.tujuan)}>
                       <SubmitButton className={`btn btn-sm ${g.tujuan ? 'btn-outline-secondary' : 'btn-primary'}`}>
                         {g.tujuan ? 'Berhenti kirim' : 'Jadikan tujuan'}

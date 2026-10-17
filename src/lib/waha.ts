@@ -43,6 +43,12 @@ export async function kirimTeks(chatId: string, text: string, balasKe?: string) 
   });
 }
 
+/** LID (ID tersembunyi WhatsApp, xxx@lid) untuk sebuah nomor; dipakai mengenali mention ke nomor bot di grup. */
+export async function lidNomor(nomor: string) {
+  const r = await panggil<{ lid?: string | null }>(`/api/${encodeURIComponent(sesi())}/lids/pn/${encodeURIComponent(nomor)}`, { timeoutMs: 8000 });
+  return r.lid ?? null;
+}
+
 /** Ubah nomor (08xx, +62xx, 62xx) atau chat ID menjadi chat ID WhatsApp. */
 export function chatIdDari(tujuan: string) {
   const t = tujuan.trim();

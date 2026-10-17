@@ -3,7 +3,7 @@
 import { and, eq } from 'drizzle-orm';
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
-import { db, mcpTokens, oauthToken, waGrup } from '@/db';
+import { botDokumen, db, mcpTokens, oauthToken, waGrup } from '@/db';
 import { wajibDosen } from '@/lib/auth';
 import { buatToken } from '@/lib/mcp-token';
 import { putuskan } from '@/lib/google';
@@ -198,4 +198,52 @@ export async function mulaiReviewAi() {
   if (!reviewAiSiap()) redirect('/dosen/review-otomatis?error=' + encodeURIComponent('ANTHROPIC_API_KEY belum diatur di Vercel.'));
   waitUntil(reviewAntrian().catch((e) => console.error('Review AI gagal', e)));
   redirect('/dosen/review-otomatis?mulai=1');
+}
+
+/** Aktifkan/matikan bot tanya-jawab di satu grup (terpisah dari status tujuan laporan). */
+export async function aturBotGrup(chatId: string, nama: string | null, botAktif: boolean) {
+  await wajibDosen();
+  await db()
+    .insert(waGrup)
+    .values({ chatId, nama, botAktif })
+    .onConflictDoUpdate({ target: waGrup.chatId, set: { botAktif, ...(nama ? { nama } : {}) } });
+  revalidatePath('/dosen/whatsapp');
+}
+
+/** Tambah dokumen rujukan bot dari file (PDF/DOCX/TXT/MD) atau teks yang ditempel. */
+export async function tambahDokumenBot(form: FormData) {
+  await wajibDosen();
+  const { ekstrakTeks } = await import('@/lib/extract');
+  const { BATAS_KARAKTER_DOKUMEN, dokumenAktif } = await import('@/lib/bot-wa');
+  const judul = String(form.get('judul') ?? '').trim().slice(0, 200);
+  const file = form.get('file');
+  let teks = String(form.get('teks') ?? '').trim();
+  let namaFile: string | null = null;
+  const gagal = (pesan: string) => redirect('/dosen/whatsapp/bot?error=' + encodeURIComponent(pesan));
+  if (!judul) gagal('Judul dokumen wajib diisi.');
+  if (file instanceof File && file.size > 0) {
+    namaFile = file.name;
+    const buf = Buffer.from(await file.arrayBuffer());
+    const kecil = file.name.toLowerCase();
+    teks = (kecil.endsWith('.txt') || kecil.endsWith('.md') ? buf.toString('utf8') : (await ekstrakTeks(buf, file.name)) ?? '').trim();
+    if (!teks) gagal('Teks tidak bisa dibaca dari file ini. Gunakan PDF hasil ekspor (bukan scan), DOCX, TXT, atau tempel teksnya.');
+  }
+  if (!teks) gagal('Unggah file atau tempel isi dokumen.');
+  const total = (await dokumenAktif()).reduce((n, d) => n + d.teks.length, 0) + teks.length;
+  if (total > BATAS_KARAKTER_DOKUMEN) gagal(`Total dokumen aktif melebihi ${BATAS_KARAKTER_DOKUMEN.toLocaleString('id-ID')} karakter. Nonaktifkan dokumen lain dulu.`);
+  await db().insert(botDokumen).values({ judul, namaFile, teks });
+  revalidatePath('/dosen/whatsapp/bot');
+  redirect('/dosen/whatsapp/bot?ok=dokumen');
+}
+
+export async function aturDokumenBot(id: number, aktif: boolean) {
+  await wajibDosen();
+  await db().update(botDokumen).set({ aktif }).where(eq(botDokumen.id, id));
+  revalidatePath('/dosen/whatsapp/bot');
+}
+
+export async function hapusDokumenBot(id: number) {
+  await wajibDosen();
+  await db().delete(botDokumen).where(eq(botDokumen.id, id));
+  revalidatePath('/dosen/whatsapp/bot');
 }

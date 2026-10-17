@@ -71,6 +71,13 @@
       "when": 1792168578130,
       "tag": "0009_login_gagal",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1792200708884,
+      "tag": "0010_bot_wa",
+      "breakpoints": true
     }
   ]
 }
