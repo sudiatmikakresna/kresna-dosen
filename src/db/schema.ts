@@ -1,4 +1,4 @@
-import { boolean, index, integer, pgTable, serial, text, timestamp, uniqueIndex } from 'drizzle-orm/pg-core';
+import { boolean, index, integer, jsonb, pgTable, serial, text, timestamp, uniqueIndex } from 'drizzle-orm/pg-core';
 
 export const users = pgTable('users', {
   id: serial('id').primaryKey(),
@@ -304,4 +304,27 @@ export const botTanya = pgTable(
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [index('bot_tanya_pengirim_idx').on(t.pengirimId, t.createdAt), index('bot_tanya_chat_idx').on(t.chatId, t.createdAt)],
+);
+
+/**
+ * Rencana perubahan SISKA dari bot WhatsApp (ubah presensi, mulai sesi) yang menunggu konfirmasi dosen.
+ * Claude hanya membuat rencana. Saat dosen membalas "ya", yang dijalankan persis isi `data`, sekali saja,
+ * dan hanya sebelum `kedaluwarsaAt`.
+ */
+export const botAksi = pgTable(
+  'bot_aksi',
+  {
+    id: serial('id').primaryKey(),
+    chatId: text('chat_id').notNull(),
+    pengirimId: text('pengirim_id').notNull(),
+    jenis: text('jenis', { enum: ['ubah_presensi', 'mulai_sesi'] }).notNull(),
+    data: jsonb('data').notNull(),
+    ringkasan: text('ringkasan').notNull(),
+    status: text('status', { enum: ['menunggu', 'dijalankan', 'dibatalkan', 'gagal'] }).notNull().default('menunggu'),
+    hasil: text('hasil'),
+    kedaluwarsaAt: timestamp('kedaluwarsa_at', { withTimezone: true }).notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    selesaiAt: timestamp('selesai_at', { withTimezone: true }),
+  },
+  (t) => [index('bot_aksi_menunggu_idx').on(t.chatId, t.pengirimId, t.createdAt)],
 );

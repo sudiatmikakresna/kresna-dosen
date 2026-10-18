@@ -85,6 +85,13 @@
       "when": 1792310228432,
       "tag": "0011_bot_nomor_izin",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1792319457735,
+      "tag": "0012_bot_aksi",
+      "breakpoints": true
     }
   ]
 }

@@ -4,6 +4,7 @@ import { and, asc, desc, eq, gt, inArray, sql } from 'drizzle-orm';
 import { botDokumen, botTanya, db, pengaturan, waGrup } from '@/db';
 import { progresSemuaMahasiswa, riwayatBimbingan } from './bot-riwayat';
 import { aktivitasKelasBengkel, bengkelSiap, poinKelasBengkel, statusMahasiswaBengkel } from './bengkel';
+import { rencanaMulaiSesi, rencanaUbahPresensi, tanganiKonfirmasi, type Konteks } from './bot-aksi';
 import { jadwalSiska, presensiSiska, rekapKetidakhadiranSiska, siskaSiap } from './bot-siska';
 import { dataKelasSpk, spkSiap } from './spk';
 import { bacaPesan, kirimTeks, lidNomor, statusSesi } from './waha';
@@ -135,7 +136,8 @@ Sumber jawabanmu HANYA:
 2. Data riwayat bimbingan skripsi dari tool riwayat_bimbingan (satu mahasiswa, cari berdasarkan nama) dan progres_semua_mahasiswa (rekap semua mahasiswa). Pakai tool ini untuk pertanyaan tentang progres, status bab, versi, tanggal unggah atau tanggapan, jumlah catatan revisi, dan progres perbaikan (syarat disetujui: lebih dari 70% catatan dari 2 bimbingan terakhir diperbaiki di setiap sub bab).
 3. Bila tool data_kelas_spk tersedia: data mata kuliah Sistem Pendukung Keputusan (SPK) dari idea-spk.vercel.app, yaitu ide studi kasus per NIM, 3 algoritma pilihan (SAW, WP, TOPSIS, AHP), dan link tugas Google Docs. Data ini hanya memuat NIM, bukan nama; bila penanya menanyakan miliknya sendiri, minta NIM-nya.
 4. Bila tool Bengkel tersedia (poin_kelas_bengkel, status_mahasiswa_bengkel, aktivitas_kelas_bengkel): data mata kuliah Pemrograman Mobile dari Bengkel Flutter (kresna.blog), yaitu poin harian per kelas, soal yang lulus, kiriman terakhir, dan push yang ditolak. Bila pertanyaan tidak menyebut kelas, kosongkan parameter kelas: tool memakai kelas milik grup ini. Bila tool menjawab perlu_kelas, minta penanya menyebut kelasnya dari daftar pilihan. Sebutkan waktu data (dataPer) di akhir jawaban, dan sampaikan peringatan bila ada.
-5. Bila tool SISKA tersedia (jadwal_mengajar_siska, presensi_siska, rekap_ketidakhadiran_siska): data akademik resmi dari SISKA untuk semua kelas dosen, termasuk SPK dan Pemrograman Mobile, yaitu jadwal mengajar, presensi satu pertemuan, dan rekap Alfa/Izin. Kosongkan parameter kelas bila pertanyaan tentang kelas grup ini. Kamu hanya bisa MEMBACA SISKA; bila diminta mengubah presensi, memulai, atau menutup sesi, jawab bahwa itu harus dilakukan dosen lewat SISKA atau konektor Claude.
+5. Bila tool SISKA tersedia (jadwal_mengajar_siska, presensi_siska, rekap_ketidakhadiran_siska): data akademik resmi dari SISKA untuk semua kelas dosen, termasuk SPK dan Pemrograman Mobile, yaitu jadwal mengajar, presensi satu pertemuan, dan rekap Alfa/Izin. Kosongkan parameter kelas bila pertanyaan tentang kelas grup ini.
+6. Absensi: bila dosen meminta mengubah presensi (mis. "absen hadir Rifqi", "Budi izin, Ani sakit") pakai rencana_ubah_presensi_siska; bila meminta memulai sesi/kelas pakai rencana_mulai_sesi_siska. Tool ini HANYA membuat rencana; sistem otomatis mengirim ringkasan dan meminta dosen membalas "ya". Jangan pernah mengatakan presensi sudah tersimpan. Bila tool menjawab perlu_perbaikan, sampaikan masalahnya dan minta nama lengkap atau NIM. Menutup presensi (mengisi Alfa massal) dan mengakhiri sesi tidak bisa lewat bot; arahkan ke SISKA.
 
 Aturan:
 - Jangan memakai pengetahuan umum, jangan menebak, dan jangan menambah informasi yang tidak ada di dokumen atau data tool.
@@ -250,9 +252,51 @@ const TOOLS_SISKA: Anthropic.Beta.BetaTool[] = [
   },
 ];
 
+const TOOLS_AKSI: Anthropic.Beta.BetaTool[] = [
+  {
+    name: 'rencana_ubah_presensi_siska',
+    description:
+      'Membuat RENCANA mengubah presensi SISKA untuk mahasiswa yang disebut dosen pada satu pertemuan (bawaan: pertemuan yang sedang MULAI, lalu yang terakhir SELESAI). Belum mengubah apa pun; dosen harus membalas "ya". Mahasiswa dicari dari nama atau NIM di daftar peserta kelas.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        kelas: { type: 'string', description: 'Opsional, sama seperti di presensi_siska. Kosongkan untuk kelas grup ini.' },
+        pertemuan_ke: { type: 'integer', description: 'Opsional, nomor pertemuan.' },
+        perubahan: {
+          type: 'array',
+          description: 'Satu entri per mahasiswa.',
+          items: {
+            type: 'object',
+            properties: {
+              mahasiswa: { type: 'string', description: 'Nama (boleh sebagian) atau NIM persis seperti disebut dosen.' },
+              status: { type: 'string', enum: ['H', 'S', 'I', 'A'], description: 'H=Hadir, S=Sakit, I=Izin, A=Alfa.' },
+              keterangan: { type: 'string', description: 'Opsional, mis. "izin acara keluarga".' },
+            },
+            required: ['mahasiswa', 'status'],
+          },
+        },
+      },
+      required: ['perubahan'],
+    },
+  },
+  {
+    name: 'rencana_mulai_sesi_siska',
+    description:
+      'Membuat RENCANA memulai sesi (status TERJADWAL menjadi MULAI) untuk pertemuan hari ini di kelas grup ini, atau pertemuan ke-N bila disebut. Belum mengubah apa pun; dosen harus membalas "ya".',
+    input_schema: {
+      type: 'object',
+      properties: {
+        kelas: { type: 'string', description: 'Opsional. Kosongkan untuk kelas grup ini.' },
+        pertemuan_ke: { type: 'integer', description: 'Opsional, nomor pertemuan.' },
+      },
+    },
+  },
+];
+
 const MAKS_PUTARAN = 4;
 
-async function jalankanTool(nama: string, input: unknown, chatId: string) {
+async function jalankanTool(nama: string, input: unknown, ctx: Konteks) {
+  const { chatId } = ctx;
   if (nama === 'riwayat_bimbingan') {
     const n = (input as { nama?: unknown })?.nama;
     if (typeof n !== 'string' || !n.trim()) return { hasil: 'error', pesan: 'Parameter nama wajib diisi.' };
@@ -270,6 +314,20 @@ async function jalankanTool(nama: string, input: unknown, chatId: string) {
     if (nama === 'jadwal_mengajar_siska') return jadwalSiska(teks(f.tanggal));
     if (nama === 'presensi_siska') return presensiSiska({ kelas: teks(f.kelas), pertemuanKe: angka(f.pertemuan_ke) }, chatId);
     if (nama === 'rekap_ketidakhadiran_siska') return rekapKetidakhadiranSiska({ kelas: teks(f.kelas), minimal: angka(f.minimal) }, chatId);
+    if (nama === 'rencana_mulai_sesi_siska') return rencanaMulaiSesi({ kelas: teks(f.kelas), pertemuanKe: angka(f.pertemuan_ke) }, ctx);
+    if (nama === 'rencana_ubah_presensi_siska') {
+      const daftar = Array.isArray(f.perubahan) ? (f.perubahan as Record<string, unknown>[]) : [];
+      return rencanaUbahPresensi(
+        {
+          kelas: teks(f.kelas),
+          pertemuanKe: angka(f.pertemuan_ke),
+          perubahan: daftar
+            .filter((x) => typeof x?.mahasiswa === 'string' && typeof x?.status === 'string')
+            .map((x) => ({ mahasiswa: String(x.mahasiswa).slice(0, 100), status: String(x.status), keterangan: teks(x.keterangan) })),
+        },
+        ctx,
+      );
+    }
   }
   if (bengkelSiap()) {
     const f = (input ?? {}) as Record<string, unknown>;
@@ -283,7 +341,7 @@ async function jalankanTool(nama: string, input: unknown, chatId: string) {
 
 type Hasil = { jawaban: string; status: 'dijawab' | 'di_luar_topik'; sumber: string[]; pakai: Record<string, number | string> };
 
-async function tanyaClaude(pertanyaan: string, nama: string | null, dokumen: { judul: string; teks: string }[], chatId: string): Promise<Hasil> {
+async function tanyaClaude(pertanyaan: string, nama: string | null, dokumen: { judul: string; teks: string }[], ctx: Konteks): Promise<Hasil> {
   const client = new Anthropic({ timeout: 90_000, maxRetries: 1 });
   const blokDokumen: Anthropic.Beta.BetaContentBlockParam[] = dokumen.map((d, i) => ({
     type: 'document',
@@ -312,7 +370,7 @@ async function tanyaClaude(pertanyaan: string, nama: string | null, dokumen: { j
       fallbacks: 'default',
       output_config: { effort: 'low' },
       system: SYSTEM,
-      tools: [...TOOLS, ...(spkSiap() ? [TOOL_SPK] : []), ...(bengkelSiap() ? TOOLS_BENGKEL : []), ...(siskaSiap() ? TOOLS_SISKA : [])],
+      tools: [...TOOLS, ...(spkSiap() ? [TOOL_SPK] : []), ...(bengkelSiap() ? TOOLS_BENGKEL : []), ...(siskaSiap() ? [...TOOLS_SISKA, ...TOOLS_AKSI] : [])],
       messages,
     });
     pakai.model = res.model;
@@ -322,6 +380,7 @@ async function tanyaClaude(pertanyaan: string, nama: string | null, dokumen: { j
     if (res.stop_reason !== 'tool_use') break;
 
     const panggilan = res.content.filter((c): c is Anthropic.Beta.BetaToolUseBlock => c.type === 'tool_use');
+    let rencana: string | null = null;
     const hasil = await Promise.all(
       panggilan.map(async (c): Promise<Anthropic.Beta.BetaToolResultBlockParam> => {
         try {
@@ -334,13 +393,17 @@ async function tanyaClaude(pertanyaan: string, nama: string | null, dokumen: { j
                   ? 'SISKA'
                   : 'data bimbingan kresna-dosen',
           );
-          return { type: 'tool_result', tool_use_id: c.id, content: JSON.stringify(await jalankanTool(c.name, c.input, chatId)) };
+          const keluaran = await jalankanTool(c.name, c.input, ctx);
+          if ((keluaran as { hasil?: string }).hasil === 'rencana_dibuat') rencana = (keluaran as { pesanKonfirmasi: string }).pesanKonfirmasi;
+          return { type: 'tool_result', tool_use_id: c.id, content: JSON.stringify(keluaran) };
         } catch (e) {
           console.error('Tool bot WhatsApp gagal', c.name, e);
           return { type: 'tool_result', tool_use_id: c.id, content: 'Data bimbingan sedang tidak bisa dibaca.', is_error: true };
         }
       }),
     );
+    // Rencana absensi: yang dikirim ke dosen adalah ringkasan dari kode, bukan kata-kata Claude.
+    if (rencana) return { jawaban: rencana, status: 'dijawab', sumber: ['SISKA'], pakai };
     // Konten asisten (termasuk blok thinking) dikirim balik apa adanya.
     messages.push({ role: 'assistant', content: res.content }, { role: 'user', content: hasil });
   }
@@ -387,6 +450,16 @@ export async function tanganiPesanBot(payload: unknown, me: unknown) {
       return selesai({ status: 'di_luar_topik', alasan: 'Pertanyaan kosong.' });
     }
 
+    // Absensi lewat bot hanya untuk nomor yang tercantum di daftar izin; daftar kosong = fitur ubah mati.
+    const ctx: Konteks = { chatId, pengirimId: pesan.pengirimId, bolehMengubah: (await nomorIzinBot()).length > 0 };
+    if (siskaSiap()) {
+      const konfirmasi = await tanganiKonfirmasi(t.pertanyaan, ctx);
+      if (konfirmasi) {
+        await kirimTeks(chatId, konfirmasi, pesan.id);
+        return selesai({ status: 'dijawab', jawaban: konfirmasi, sumber: 'SISKA' });
+      }
+    }
+
     const dihitung = inArray(botTanya.status, ['diproses', 'dijawab', 'di_luar_topik', 'gagal']);
     const [[orang], [grup]] = await Promise.all([
       db()
@@ -410,7 +483,7 @@ export async function tanganiPesanBot(payload: unknown, me: unknown) {
     }
 
     // Tanpa dokumen pun bot tetap bisa menjawab pertanyaan riwayat bimbingan lewat tool.
-    const h = await tanyaClaude(t.pertanyaan, pesan.pengirim, await dokumenAktif(), chatId);
+    const h = await tanyaClaude(t.pertanyaan, pesan.pengirim, await dokumenAktif(), ctx);
     await kirimTeks(chatId, h.jawaban, pesan.id);
     await selesai({
       status: h.status,

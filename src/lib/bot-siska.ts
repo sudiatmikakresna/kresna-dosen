@@ -42,7 +42,7 @@ export function cocokNamaGrup(nama: string, semua: Kelas[]) {
 }
 
 /** Kelas dari teks bebas ("spk", "pemrograman mobile si pagi1", "4702", "kamis") atau dari grup tempat bertanya. */
-async function cariKelas(teks: string | undefined, chatId: string): Promise<Kelas[]> {
+export async function cariKelas(teks: string | undefined, chatId: string): Promise<Kelas[]> {
   const semua = await listKelas();
   const t = (teks ?? '').toLowerCase().trim();
   if (!t) {
@@ -66,7 +66,7 @@ export function saringKelas(teks: string, semua: Kelas[]) {
   });
 }
 
-async function perluKelas(cocok: Kelas[]) {
+export async function perluKelas(cocok: Kelas[]) {
   const pilihan = cocok.length ? cocok : await listKelas();
   return {
     hasil: 'perlu_kelas',
