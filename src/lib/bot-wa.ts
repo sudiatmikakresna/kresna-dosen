@@ -306,7 +306,10 @@ const tanpaSumber = (t: string) => t.replace(/\n\n_Sumber: [^\n]*_$/, '');
 
 type Giliran = { pertanyaan: string; jawaban: string };
 
-/** Riwayat percakapan penanya ini: maksimal MAKS_RIWAYAT tanya-jawab dalam JENDELA_RIWAYAT_MENIT, setelah reset terakhir. */
+/**
+ * Riwayat percakapan penanya ini DI GRUP INI SAJA (filter chatId + pengirimId): riwayat dari grup lain tidak pernah
+ * dibawa. Maksimal MAKS_RIWAYAT tanya-jawab dalam JENDELA_RIWAYAT_MENIT, setelah reset terakhir.
+ */
 async function riwayatPercakapan(chatId: string, pengirimId: string | null, sebelumId: number): Promise<Giliran[]> {
   if (!pengirimId) return [];
   const baris = await db()
