@@ -216,7 +216,7 @@ pesan grup ──webhook WAHA (HMAC)──► bot di-mention / pesan bot dibalas
 
 - Aktifkan per grup di **Panel dosen → WhatsApp → Aktifkan bot**. Grup lain diabaikan. Saklar ini terpisah dari
   "Jadikan tujuan" (laporan review).
-- Unggah dokumen rujukan (PDF, DOCX, TXT, MD sampai 100 MB, atau tempel teks; teks diekstrak di browser sehingga file besar tidak terkena batas body Vercel, dan PDF hasil scan ditolak) di **WhatsApp → Dokumen & log bot
+- Unggah dokumen rujukan (PDF, DOCX, TXT, MD sampai 100 MB, atau tempel teks; teks diekstrak di browser sehingga file besar tidak terkena batas body Vercel; PDF hasil scan dibaca dengan OCR Claude Sonnet 5.5 setelah dosen menyetujui perkiraan biayanya, ±$0,01 per halaman, maks. 300 halaman) di **WhatsApp → Dokumen & log bot
   tanya-jawab** (`/dosen/whatsapp/bot`). Teks disimpan di tabel `bot_dokumen`; dokumen bisa dinonaktifkan tanpa dihapus.
 - Bot menjawab **hanya dari dokumen aktif dan data riwayat bimbingan**, lalu menyebut sumbernya. Bila jawabannya tidak
   ada di keduanya, bot membalas penolakan tetap dan menyarankan bertanya ke dosen, tanpa menebak.
@@ -257,9 +257,27 @@ pesan grup ──webhook WAHA (HMAC)──► bot di-mention / pesan bot dibalas
   Penanya bisa mengirim "mulai baru" untuk mengosongkan konteks. Log bot mencatat berapa tanya-jawab yang dipakai.
 - Batas: 5 pertanyaan per orang per 10 menit dan 100 per grup per hari. Webhook ulangan untuk pesan yang sama tidak
   menghasilkan jawaban ganda.
-- Semua pertanyaan, jawaban, status, dan pemakaian token tercatat di tabel `bot_tanya` dan tampil di halaman bot.
-- Environment variable: `ANTHROPIC_API_KEY` dan `WAHA_WEBHOOK_HMAC_KEY` (keduanya sudah dipakai fitur lain). Isi dokumen
-  dikirim ke Claude setiap pertanyaan dan di-cache 1 jam, jadi pertanyaan berikutnya dalam jam yang sama jauh lebih murah.
+- **Sumber per grup** (`wa_grup.bot_sumber`): di halaman bot, centang sumber yang boleh dipakai tiap grup (dokumen,
+  bimbingan, SPK, Bengkel, SISKA). Tool di luar sumber grup tidak ditawarkan ke Claude dan ditolak bila tetap dipanggil.
+  Grup yang belum diatur memakai semua sumber; atur sebelum membuka bot ke mahasiswa.
+- **Indikator mengetik** tampil selama bot memproses. **Jawaban panjang** dipecah per paragraf menjadi maksimal 5 pesan
+  bernomor (1/n), bukan dipotong diam-diam.
+- **Lampiran**: gambar (JPEG/PNG/WebP/GIF ≤5 MB) dan PDF (≤20 MB) yang dikirim bersama mention, atau di pesan yang
+  di-reply, ikut dibaca Claude. Voice note, video, dan file lain dibalas bahwa belum didukung. Media diunduh dari WAHA
+  (`media.url` di webhook, atau endpoint pesan dengan `downloadMedia=true`).
+- **Model & batas biaya**: pilih Opus 5.5, Sonnet 5.5, atau Haiku 5.5 dan batas biaya per bulan (bawaan $20). Bila batas
+  tercapai bot membalas "kuota habis"; Telegram memberi tahu di 80% dan 100%. Biaya dihitung dari token di `bot_tanya`
+  (harga di `src/lib/harga-claude.ts`, perkiraan; tagihan resmi di platform.claude.com).
+- **Notifikasi gagal**: bila bot gagal menjawab, dosen diberi tahu lewat Telegram (paling sering sekali per 30 menit).
+- **Dokumen besar**: bila total dokumen aktif lebih dari 300 ribu karakter, bot tidak mengirim semuanya, tetapi memilih
+  potongan paling relevan dengan pencarian kata kunci BM25 (`src/lib/bot-cari.ts`, tanpa layanan embedding).
+- **Uji bot** (`/dosen/whatsapp/bot/uji`): kasus uji (pertanyaan, harapan dijawab/ditolak, teks yang harus ada, grup)
+  dijalankan ke Claude sungguhan tanpa WhatsApp dan tanpa izin mengubah presensi; ada juga kotak "coba satu
+  pertanyaan". Jalankan setelah mengubah dokumen, model, prompt, atau sumber grup.
+- Semua pertanyaan, jawaban, status, model, dan pemakaian token tercatat di tabel `bot_tanya` dan tampil di halaman bot.
+- Environment variable: `ANTHROPIC_API_KEY` dan `WAHA_WEBHOOK_HMAC_KEY` (keduanya sudah dipakai fitur lain); Telegram
+  opsional untuk notifikasi. Isi dokumen dikirim ke Claude setiap pertanyaan dan di-cache 1 jam, jadi pertanyaan
+  berikutnya dalam jam yang sama jauh lebih murah.
 
 ## Google Docs
 

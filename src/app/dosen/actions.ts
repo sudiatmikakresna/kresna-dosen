@@ -3,7 +3,7 @@
 import { and, eq } from 'drizzle-orm';
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
-import { botDokumen, db, mcpTokens, oauthToken, pengaturan, users, waGrup } from '@/db';
+import { botDokumen, botUji, db, mcpTokens, oauthToken, pengaturan, users, waGrup } from '@/db';
 import { wajibDosen } from '@/lib/auth';
 import { buatToken } from '@/lib/mcp-token';
 import { buangKeSampah, putuskan } from '@/lib/google';
@@ -311,4 +311,94 @@ export async function setujuiDanUmumkan(berkasId: number) {
   }
   segarkan(berkasId);
   redirect(`/dosen/berkas/${berkasId}?ok=` + encodeURIComponent(`${m.nama} · ${label} disetujui dan mahasiswa sudah diberi tahu. ${wa}`));
+}
+
+/** Sumber yang boleh dipakai bot di satu grup (checkbox di halaman bot). */
+export async function aturSumberGrup(chatId: string, form: FormData) {
+  await wajibDosen();
+  const { SUMBER_BOT } = await import('@/lib/bot-wa');
+  const dipilih = SUMBER_BOT.map((x) => x.id).filter((id) => form.get(`sumber_${id}`) === 'on');
+  await db().update(waGrup).set({ botSumber: dipilih.join(',') }).where(eq(waGrup.chatId, chatId));
+  revalidatePath('/dosen/whatsapp/bot');
+  redirect('/dosen/whatsapp/bot?ok=sumber');
+}
+
+/** Model Claude dan batas biaya bulanan bot WhatsApp. */
+export async function aturModelBot(form: FormData) {
+  await wajibDosen();
+  const { modelValid } = await import('@/lib/harga-claude');
+  const model = String(form.get('model') ?? '');
+  const batas = Number(String(form.get('batas') ?? '').replace(',', '.'));
+  if (!modelValid(model)) redirect('/dosen/whatsapp/bot?error=' + encodeURIComponent('Model tidak dikenal.'));
+  if (!Number.isFinite(batas) || batas < 0 || batas > 10_000) redirect('/dosen/whatsapp/bot?error=' + encodeURIComponent('Batas biaya harus angka 0–10000 (0 = tanpa batas).'));
+  for (const [kunci, nilai] of [['wa_bot_model', model], ['wa_bot_batas_biaya', String(batas)]]) {
+    await db().insert(pengaturan).values({ kunci, nilai }).onConflictDoUpdate({ target: pengaturan.kunci, set: { nilai, updatedAt: new Date() } });
+  }
+  revalidatePath('/dosen/whatsapp/bot');
+  redirect('/dosen/whatsapp/bot?ok=model');
+}
+
+/** OCR satu kelompok halaman PDF hasil scan (JPEG base64 dari browser) untuk dokumen bot. */
+export async function ocrHalamanPdf(halaman: { nomor: number; jpegBase64: string }[]) {
+  await wajibDosen();
+  const { MAKS_HALAMAN_PER_PANGGIL, ocrHalaman } = await import('@/lib/ocr');
+  if (!Array.isArray(halaman) || halaman.length === 0 || halaman.length > MAKS_HALAMAN_PER_PANGGIL) throw new Error('Jumlah halaman tidak valid.');
+  for (const h of halaman) {
+    if (!Number.isInteger(h.nomor) || typeof h.jpegBase64 !== 'string' || h.jpegBase64.length > 1_400_000 || !/^[A-Za-z0-9+/=]+$/.test(h.jpegBase64)) {
+      throw new Error('Gambar halaman tidak valid atau terlalu besar.');
+    }
+  }
+  return ocrHalaman(halaman);
+}
+
+const ujiSchema = z.object({
+  pertanyaan: z.string().trim().min(3, 'Pertanyaan terlalu pendek.').max(1000),
+  harapan: z.enum(['dijawab', 'ditolak']),
+  mengandung: z.string().trim().max(200),
+  chatId: z.string().trim().max(100),
+});
+
+export async function tambahUjiBot(form: FormData) {
+  await wajibDosen();
+  const v = ujiSchema.safeParse({
+    pertanyaan: form.get('pertanyaan') ?? '',
+    harapan: form.get('harapan') ?? '',
+    mengandung: form.get('mengandung') ?? '',
+    chatId: form.get('chatId') ?? '',
+  });
+  if (!v.success) redirect('/dosen/whatsapp/bot/uji?error=' + encodeURIComponent(v.error.issues[0].message));
+  await db().insert(botUji).values({ pertanyaan: v.data.pertanyaan, harapan: v.data.harapan, mengandung: v.data.mengandung || null, chatId: v.data.chatId || null });
+  revalidatePath('/dosen/whatsapp/bot/uji');
+}
+
+export async function hapusUjiBot(id: number) {
+  await wajibDosen();
+  await db().delete(botUji).where(eq(botUji.id, id));
+  revalidatePath('/dosen/whatsapp/bot/uji');
+}
+
+/** Jalankan semua kasus uji di latar (berurutan); halaman menampilkan hasil saat dimuat ulang. */
+export async function jalankanUjiBot() {
+  await wajibDosen();
+  const { jalankanSemuaUji } = await import('@/lib/bot-uji');
+  const jumlah = await jalankanSemuaUji();
+  revalidatePath('/dosen/whatsapp/bot/uji');
+  redirect('/dosen/whatsapp/bot/uji?ok=' + encodeURIComponent(`${jumlah} kasus dijalankan di latar. Muat ulang halaman ini dalam 1–3 menit untuk melihat hasilnya.`));
+}
+
+export type CobaState = { pertanyaan?: string; status?: string; jawaban?: string; biaya?: number; error?: string };
+
+/** Coba satu pertanyaan tanpa WhatsApp; hasil tidak disimpan. */
+export async function cobaTanyaBot(_: CobaState, form: FormData): Promise<CobaState> {
+  await wajibDosen();
+  const pertanyaan = String(form.get('pertanyaan') ?? '').trim().slice(0, 1000);
+  const chatId = String(form.get('chatId') ?? '').trim() || null;
+  if (pertanyaan.length < 2) return { error: 'Tulis pertanyaannya dulu.' };
+  try {
+    const { jawabUji } = await import('@/lib/bot-wa');
+    const h = await jawabUji(pertanyaan, chatId);
+    return { pertanyaan, status: h.status, jawaban: h.jawaban, biaya: h.biaya };
+  } catch (e) {
+    return { pertanyaan, error: (e as Error).message.slice(0, 300) };
+  }
 }

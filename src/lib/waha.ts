@@ -43,6 +43,44 @@ export async function kirimTeks(chatId: string, text: string, balasKe?: string) 
   });
 }
 
+/** Tampilkan / hentikan status "sedang mengetik..." di chat. Kedaluwarsa sendiri ±25 detik di WhatsApp. */
+export async function mengetik(chatId: string, aktif: boolean) {
+  return panggil<unknown>(aktif ? '/api/startTyping' : '/api/stopTyping', { method: 'POST', body: { session: sesi(), chatId }, timeoutMs: 8000 });
+}
+
+export type Media = { mimetype: string; data: Buffer; namaFile: string | null };
+
+/**
+ * Unduh lampiran sebuah pesan dari WAHA. Pakai `media.url` di payload webhook bila ada; bila tidak (unduh otomatis
+ * mati), minta WAHA mengunduhnya lewat endpoint pesan. URL media dibangun WAHA dengan alamat internalnya, jadi
+ * host-nya diganti dengan WAHA_URL.
+ */
+export async function ambilMedia(chatId: string, messageId: string, media?: { url?: unknown; mimetype?: unknown; filename?: unknown } | null, batasByte = 20 * 1024 * 1024): Promise<Media | null> {
+  let m = media && typeof media.url === 'string' ? media : null;
+  if (!m) {
+    const pesan = await panggil<Record<string, unknown>>(
+      `/api/${encodeURIComponent(sesi())}/chats/${encodeURIComponent(chatId)}/messages/${encodeURIComponent(messageId)}?downloadMedia=true`,
+      { timeoutMs: 30000 },
+    );
+    const x = pesan.media as { url?: unknown; mimetype?: unknown; filename?: unknown } | undefined;
+    m = x && typeof x.url === 'string' ? x : null;
+  }
+  if (!m) return null;
+  const u = new URL(String(m.url), dasar() || 'http://localhost');
+  const res = await fetch(`${dasar()}${u.pathname}${u.search}`, {
+    headers: { 'x-api-key': process.env.WAHA_API_KEY! },
+    cache: 'no-store',
+    signal: AbortSignal.timeout(30000),
+  });
+  if (!res.ok) throw new Error(`WAHA ${res.status} saat mengunduh lampiran.`);
+  const panjang = Number(res.headers.get('content-length') ?? 0);
+  if (panjang > batasByte) throw new Error('Lampiran terlalu besar.');
+  const data = Buffer.from(await res.arrayBuffer());
+  if (data.byteLength > batasByte) throw new Error('Lampiran terlalu besar.');
+  const mimetype = (typeof m.mimetype === 'string' && m.mimetype) || res.headers.get('content-type') || '';
+  return { mimetype: mimetype.split(';')[0].trim().toLowerCase(), data, namaFile: typeof m.filename === 'string' ? m.filename : null };
+}
+
 /** LID (ID tersembunyi WhatsApp, xxx@lid) untuk sebuah nomor; dipakai mengenali mention ke nomor bot di grup. */
 export async function lidNomor(nomor: string) {
   const r = await panggil<{ lid?: string | null }>(`/api/${encodeURIComponent(sesi())}/lids/pn/${encodeURIComponent(nomor)}`, { timeoutMs: 8000 });

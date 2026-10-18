@@ -1,19 +1,17 @@
 import Link from 'next/link';
 import { asc, desc, eq } from 'drizzle-orm';
 import { botDokumen, botTanya, db, waGrup } from '@/db';
-import { aturDokumenBot, aturNomorBot, hapusDokumenBot } from '@/app/dosen/actions';
+import { aturDokumenBot, aturModelBot, aturNomorBot, aturSumberGrup, hapusDokumenBot } from '@/app/dosen/actions';
 import { FormDokumen } from './FormDokumen';
 import { SubmitButton } from '@/components/SubmitButton';
 import { waktu } from '@/lib/labels';
-import { BATAS_KARAKTER_DOKUMEN, MODEL_BOT, botSiap, nomorIzinBot } from '@/lib/bot-wa';
+import { AMBANG_RETRIEVAL, BATAS_KARAKTER_DOKUMEN, SUMBER_BOT, biayaBulanIni, botSiap, nomorIzinBot, pengaturanBot, sumberDari } from '@/lib/bot-wa';
+import { MODEL_BOT_PILIHAN, biayaUsd } from '@/lib/harga-claude';
 import { webhookSiap } from '@/lib/wa-pesan';
 import { bengkelSiap } from '@/lib/bengkel';
 import { spkSiap } from '@/lib/spk';
 
 export const metadata = { title: 'Bot tanya-jawab WhatsApp' };
-
-// Harga Claude Opus 5.5 per 1 juta token (USD), untuk perkiraan biaya saja.
-const HARGA = { input: 4, output: 20, cacheRead: 0.2 };
 
 const STATUS: Record<string, [string, string]> = {
   diproses: ['Diproses', 'text-bg-secondary'],
@@ -30,11 +28,10 @@ export default async function BotPage({ searchParams }: { searchParams: Promise<
     db().select().from(waGrup).where(eq(waGrup.botAktif, true)),
     db().select().from(botTanya).orderBy(desc(botTanya.createdAt)).limit(40),
   ]);
-  const nomorIzin = await nomorIzinBot();
+  const [nomorIzin, setelan, terpakai] = await Promise.all([nomorIzinBot(), pengaturanBot(), biayaBulanIni()]);
   const totalAktif = dokumen.filter((d) => d.aktif).reduce((n, d) => n + d.teks.length, 0);
   const namaGrup = new Map(grup.map((g) => [g.chatId, g.nama ?? g.chatId]));
-  const biaya = (t: typeof botTanya.$inferSelect) =>
-    ((t.inputTokens ?? 0) * HARGA.input + (t.outputTokens ?? 0) * HARGA.output + (t.cacheReadTokens ?? 0) * HARGA.cacheRead) / 1_000_000;
+  const biaya = (t: typeof botTanya.$inferSelect) => biayaUsd(t.model, { input: t.inputTokens, output: t.outputTokens, cacheRead: t.cacheReadTokens });
 
   return (
     <>
@@ -44,15 +41,20 @@ export default async function BotPage({ searchParams }: { searchParams: Promise<
           <li className="breadcrumb-item active" aria-current="page">Bot tanya-jawab</li>
         </ol>
       </nav>
-      <h1 className="h3 mb-1">Bot tanya-jawab WhatsApp</h1>
+      <div className="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-1">
+        <h1 className="h3 mb-0">Bot tanya-jawab WhatsApp</h1>
+        <Link href="/dosen/whatsapp/bot/uji" className="btn btn-sm btn-outline-primary">Uji bot tanpa WhatsApp →</Link>
+      </div>
       <p className="text-body-secondary small mb-4">
-        Di grup yang bot-nya aktif, anggota bisa menyebut (mention) nomor WhatsApp ini atau membalas pesan bot untuk bertanya. Claude ({MODEL_BOT})
+        Di grup yang bot-nya aktif, anggota bisa menyebut (mention) nomor WhatsApp ini atau membalas pesan bot untuk bertanya. Claude ({MODEL_BOT_PILIHAN[setelan.model].nama})
         menjawab <strong>hanya berdasarkan dokumen aktif di bawah dan data riwayat bimbingan</strong> (progres semua mahasiswa: bab, versi,
         tanggal, keputusan, jumlah catatan, progres perbaikan; tanpa isi catatan dan NIM), lalu menyebut sumbernya. Pertanyaan di luar
         itu dijawab dengan penolakan sopan. Maksimal 5 pertanyaan per orang per 10 menit dan 100 per grup per hari.
       </p>
       {ok === 'dokumen' && <div className="alert alert-success">Dokumen ditambahkan dan langsung dipakai bot.</div>}
       {ok === 'nomor' && <div className="alert alert-success">Daftar nomor yang boleh memakai bot disimpan.</div>}
+      {ok === 'sumber' && <div className="alert alert-success">Sumber bot untuk grup itu disimpan.</div>}
+      {ok === 'model' && <div className="alert alert-success">Model dan batas biaya disimpan.</div>}
       {error && <div className="alert alert-danger">{error}</div>}
 
       <div className="row g-4">
@@ -79,6 +81,13 @@ export default async function BotPage({ searchParams }: { searchParams: Promise<
                 <span className={`badge me-2 ${totalAktif ? 'text-bg-success' : 'text-bg-warning'}`}>{dokumen.filter((d) => d.aktif).length}</span>
                 dokumen aktif, {totalAktif.toLocaleString('id-ID')} dari {BATAS_KARAKTER_DOKUMEN.toLocaleString('id-ID')} karakter
                 (±{Math.round(totalAktif / 4).toLocaleString('id-ID')} token)
+                {totalAktif > AMBANG_RETRIEVAL && <> · dokumen besar: bot mencari potongan yang relevan, bukan mengirim semuanya</>}
+              </li>
+              <li className="list-group-item">
+                <span className={`badge me-2 ${setelan.batasBiaya > 0 && terpakai >= setelan.batasBiaya ? 'text-bg-danger' : setelan.batasBiaya > 0 && terpakai >= setelan.batasBiaya * 0.8 ? 'text-bg-warning' : 'text-bg-success'}`}>
+                  ${terpakai.toFixed(2)}
+                </span>
+                perkiraan biaya bulan ini{setelan.batasBiaya > 0 ? ` dari batas $${setelan.batasBiaya}` : ' (tanpa batas)'}
               </li>
             </ul>
           </div>
@@ -98,6 +107,61 @@ export default async function BotPage({ searchParams }: { searchParams: Promise<
                 <textarea id="nomor" name="nomor" rows={3} className="form-control form-control-sm font-monospace mb-2" defaultValue={nomorIzin.join('\n')} placeholder="081234567890" />
                 <SubmitButton className="btn btn-sm btn-primary">Simpan nomor</SubmitButton>
               </form>
+            </div>
+          </div>
+
+          <div className="card mb-4">
+            <div className="card-header fw-semibold">Model &amp; batas biaya</div>
+            <div className="card-body small">
+              <form action={aturModelBot}>
+                <label htmlFor="model" className="form-label">Model Claude</label>
+                <select id="model" name="model" className="form-select form-select-sm mb-2" defaultValue={setelan.model}>
+                  {Object.entries(MODEL_BOT_PILIHAN).map(([id, m]) => (
+                    <option key={id} value={id}>
+                      {m.nama} · {m.keterangan} (${m.input}/${m.output} per 1 juta token)
+                    </option>
+                  ))}
+                </select>
+                <label htmlFor="batas" className="form-label">Batas biaya per bulan (USD, 0 = tanpa batas)</label>
+                <input id="batas" name="batas" type="number" min={0} step="0.5" className="form-control form-control-sm mb-2" defaultValue={setelan.batasBiaya} />
+                <p className="text-body-secondary mb-2">
+                  Bila batas tercapai, bot membalas &quot;kuota habis&quot; sampai bulan berikutnya. Telegram memberi tahu di 80% dan 100%.
+                </p>
+                <SubmitButton className="btn btn-sm btn-primary">Simpan</SubmitButton>
+              </form>
+            </div>
+          </div>
+
+          <div className="card mb-4">
+            <div className="card-header fw-semibold">Sumber per grup</div>
+            {grup.length === 0 ? (
+              <div className="card-body small text-body-secondary">Belum ada grup dengan bot aktif.</div>
+            ) : (
+              <ul className="list-group list-group-flush small">
+                {grup.map((g) => {
+                  const aktif = sumberDari(g.botSumber);
+                  return (
+                    <li key={g.chatId} className="list-group-item">
+                      <form action={aturSumberGrup.bind(null, g.chatId)}>
+                        <div className="fw-semibold mb-1">
+                          {g.nama ?? g.chatId}
+                          {g.botSumber == null && <span className="badge text-bg-warning ms-2">semua sumber (belum diatur)</span>}
+                        </div>
+                        {SUMBER_BOT.map((x) => (
+                          <div className="form-check" key={x.id}>
+                            <input className="form-check-input" type="checkbox" id={`${g.chatId}-${x.id}`} name={`sumber_${x.id}`} defaultChecked={aktif.has(x.id)} />
+                            <label className="form-check-label" htmlFor={`${g.chatId}-${x.id}`}>{x.label}</label>
+                          </div>
+                        ))}
+                        <SubmitButton className="btn btn-sm btn-outline-primary mt-2">Simpan sumber grup ini</SubmitButton>
+                      </form>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+            <div className="card-footer small text-body-secondary">
+              Bot hanya memakai sumber yang dicentang di grup itu. Pertanyaan tentang sumber lain ditolak, mis. grup kelas SPK tidak bisa menanyakan progres skripsi.
             </div>
           </div>
 

@@ -129,6 +129,8 @@ export const waGrup = pgTable('wa_grup', {
   diizinkan: boolean('diizinkan').notNull().default(false),
   /** Bot tanya-jawab (RAG) menjawab mention di grup ini. Terpisah dari tujuan laporan. */
   botAktif: boolean('bot_aktif').notNull().default(false),
+  /** Sumber yang boleh dipakai bot di grup ini, dipisah koma (dokumen,bimbingan,spk,bengkel,siska). Null = semua. */
+  botSumber: text('bot_sumber'),
   terakhirAt: timestamp('terakhir_at', { withTimezone: true }).notNull().defaultNow(),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 });
@@ -300,6 +302,8 @@ export const botTanya = pgTable(
     inputTokens: integer('input_tokens'),
     outputTokens: integer('output_tokens'),
     cacheReadTokens: integer('cache_read_tokens'),
+    /** Model Claude yang menjawab, untuk menghitung biaya. */
+    model: text('model'),
     durasiMs: integer('durasi_ms'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
@@ -328,3 +332,23 @@ export const botAksi = pgTable(
   },
   (t) => [index('bot_aksi_menunggu_idx').on(t.chatId, t.pengirimId, t.createdAt)],
 );
+
+/**
+ * Kasus uji bot tanya-jawab (halaman Uji bot). Dijalankan tanpa WhatsApp; hasil terakhir disimpan di baris yang sama.
+ * harapan "ditolak" = bot harus menolak (di luar dokumen/data); "dijawab" = bot harus menjawab dan, bila diisi,
+ * jawabannya memuat teks `mengandung`.
+ */
+export const botUji = pgTable('bot_uji', {
+  id: serial('id').primaryKey(),
+  pertanyaan: text('pertanyaan').notNull(),
+  /** Grup sebagai konteks (sumber dan kelas grup). Null = semua sumber, tanpa kelas grup. */
+  chatId: text('chat_id'),
+  harapan: text('harapan', { enum: ['dijawab', 'ditolak'] }).notNull(),
+  mengandung: text('mengandung'),
+  hasilStatus: text('hasil_status'),
+  hasilJawaban: text('hasil_jawaban'),
+  lulus: boolean('lulus'),
+  biayaUsd: integer('biaya_mikro_usd'),
+  dijalankanAt: timestamp('dijalankan_at', { withTimezone: true }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+});
