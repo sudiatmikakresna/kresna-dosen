@@ -236,6 +236,11 @@ pesan grup ──webhook WAHA (HMAC)──► bot di-mention / pesan bot dibalas
   yang lulus = 2, D3 = 5, dihitung per tanggal sebelum 22.00 WITA, target 10. Kelas dikenali dari ID grup WhatsApp
   (tabel `bengkel.kelas`), jadi di grup kelas pertanyaan tidak perlu menyebut kelasnya. Aktif bila
   `BENGKEL_DATABASE_URL` diatur; pakai role Neon yang hanya punya hak `SELECT` pada schema `bengkel`.
+- Data SISKA (baca saja): tool `jadwal_mengajar_siska`, `presensi_siska`, dan `rekap_ketidakhadiran_siska`
+  (`src/lib/bot-siska.ts`) memakai klien SISKA yang sama dengan konektor MCP SISKA (`SISKA_COOKIE`). Kelas dikenali dari
+  nama grup berpola `HARI-DOSEN-Mata Kuliah-PRODI-KELAS-JAM` (mis. `KAM-IBK-Pemrograman Mobile-SI-PAGI1-13.00`), jadi
+  berlaku juga untuk grup SPK. Bot tidak pernah mengubah presensi atau memulai/menutup sesi. Aktif bila `SISKA_COOKIE`
+  diatur; bila cookie kedaluwarsa, tool SISKA gagal dan bot menjawab bahwa data sedang tidak bisa dibaca.
 - Siapa yang boleh bertanya diatur di halaman bot (**Siapa yang boleh bertanya**, kunci `wa_bot_nomor_izin` di tabel
   `pengaturan`; awalnya hanya 081934374633). Pengirim dicocokkan lewat nomor maupun LID-nya (diambil dari WAHA).
   Mention dari nomor lain diabaikan tanpa balasan dan tercatat "Dibatasi". Kosongkan daftar untuk mengizinkan semua.
