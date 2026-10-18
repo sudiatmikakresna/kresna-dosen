@@ -1,11 +1,11 @@
 import Link from 'next/link';
 import { asc, desc, eq } from 'drizzle-orm';
 import { botDokumen, botTanya, db, waGrup } from '@/db';
-import { aturDokumenBot, hapusDokumenBot } from '@/app/dosen/actions';
+import { aturDokumenBot, aturNomorBot, hapusDokumenBot } from '@/app/dosen/actions';
 import { FormDokumen } from './FormDokumen';
 import { SubmitButton } from '@/components/SubmitButton';
 import { waktu } from '@/lib/labels';
-import { BATAS_KARAKTER_DOKUMEN, MODEL_BOT, botSiap } from '@/lib/bot-wa';
+import { BATAS_KARAKTER_DOKUMEN, MODEL_BOT, botSiap, nomorIzinBot } from '@/lib/bot-wa';
 import { webhookSiap } from '@/lib/wa-pesan';
 import { spkSiap } from '@/lib/spk';
 
@@ -29,6 +29,7 @@ export default async function BotPage({ searchParams }: { searchParams: Promise<
     db().select().from(waGrup).where(eq(waGrup.botAktif, true)),
     db().select().from(botTanya).orderBy(desc(botTanya.createdAt)).limit(40),
   ]);
+  const nomorIzin = await nomorIzinBot();
   const totalAktif = dokumen.filter((d) => d.aktif).reduce((n, d) => n + d.teks.length, 0);
   const namaGrup = new Map(grup.map((g) => [g.chatId, g.nama ?? g.chatId]));
   const biaya = (t: typeof botTanya.$inferSelect) =>
@@ -50,6 +51,7 @@ export default async function BotPage({ searchParams }: { searchParams: Promise<
         itu dijawab dengan penolakan sopan. Maksimal 5 pertanyaan per orang per 10 menit dan 100 per grup per hari.
       </p>
       {ok === 'dokumen' && <div className="alert alert-success">Dokumen ditambahkan dan langsung dipakai bot.</div>}
+      {ok === 'nomor' && <div className="alert alert-success">Daftar nomor yang boleh memakai bot disimpan.</div>}
       {error && <div className="alert alert-danger">{error}</div>}
 
       <div className="row g-4">
@@ -74,6 +76,24 @@ export default async function BotPage({ searchParams }: { searchParams: Promise<
                 (±{Math.round(totalAktif / 4).toLocaleString('id-ID')} token)
               </li>
             </ul>
+          </div>
+
+          <div className="card mb-4">
+            <div className="card-header fw-semibold">Siapa yang boleh bertanya</div>
+            <div className="card-body small">
+              <p className="mb-2">
+                {nomorIzin.length ? (
+                  <>Hanya <strong>{nomorIzin.length} nomor</strong> di bawah yang dilayani bot. Mention dari nomor lain diabaikan tanpa balasan (tercatat sebagai &quot;Dibatasi&quot;).</>
+                ) : (
+                  <>Semua anggota grup yang bot-nya aktif boleh bertanya.</>
+                )}
+              </p>
+              <form action={aturNomorBot}>
+                <label htmlFor="nomor" className="form-label">Nomor WhatsApp, pisahkan dengan koma atau baris baru (kosongkan untuk semua anggota)</label>
+                <textarea id="nomor" name="nomor" rows={3} className="form-control form-control-sm font-monospace mb-2" defaultValue={nomorIzin.join('\n')} placeholder="081234567890" />
+                <SubmitButton className="btn btn-sm btn-primary">Simpan nomor</SubmitButton>
+              </form>
+            </div>
           </div>
 
           <div className="card">

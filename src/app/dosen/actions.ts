@@ -3,7 +3,7 @@
 import { and, eq } from 'drizzle-orm';
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
-import { botDokumen, db, mcpTokens, oauthToken, users, waGrup } from '@/db';
+import { botDokumen, db, mcpTokens, oauthToken, pengaturan, users, waGrup } from '@/db';
 import { wajibDosen } from '@/lib/auth';
 import { buatToken } from '@/lib/mcp-token';
 import { buangKeSampah, putuskan } from '@/lib/google';
@@ -265,4 +265,20 @@ export async function hapusMahasiswa(id: number, form: FormData) {
   await db().delete(users).where(eq(users.id, m.id));
   revalidatePath('/dosen');
   redirect('/dosen?ok=' + encodeURIComponent(`${m.nama} (${m.nim}) dan seluruh riwayat bimbingannya sudah dihapus.${catatanDrive}`));
+}
+
+/** Simpan daftar nomor yang boleh memakai bot tanya-jawab WhatsApp. Kosong berarti semua anggota grup boleh. */
+export async function aturNomorBot(form: FormData) {
+  await wajibDosen();
+  const { normalNomor } = await import('@/lib/bot-wa');
+  const daftar = [...new Set(String(form.get('nomor') ?? '').split(/[,;\n]+/).map(normalNomor).filter(Boolean))];
+  const salah = daftar.filter((n) => n.length < 10 || n.length > 15);
+  if (salah.length) redirect('/dosen/whatsapp/bot?error=' + encodeURIComponent(`Nomor tidak valid: ${salah.join(', ')}`));
+  const nilai = daftar.join(',');
+  await db()
+    .insert(pengaturan)
+    .values({ kunci: 'wa_bot_nomor_izin', nilai })
+    .onConflictDoUpdate({ target: pengaturan.kunci, set: { nilai, updatedAt: new Date() } });
+  revalidatePath('/dosen/whatsapp/bot');
+  redirect('/dosen/whatsapp/bot?ok=nomor');
 }

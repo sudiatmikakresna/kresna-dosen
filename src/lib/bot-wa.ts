@@ -21,31 +21,64 @@ const PENANDA_LUAR = '[DI_LUAR_DOKUMEN]';
 const JAWAB_LUAR =
   'Maaf, pertanyaan ini tidak tercakup dalam dokumen panduan maupun data yang saya pegang, jadi saya tidak bisa menjawabnya. Silakan tanyakan langsung ke dosen.';
 const KUNCI_LID = 'wa_bot_lid';
+const KUNCI_NOMOR_IZIN = 'wa_bot_nomor_izin';
 
 export const botSiap = () => !!process.env.ANTHROPIC_API_KEY;
 
 const digit = (v: unknown) => (typeof v === 'string' ? v.split('@')[0].split(':')[0].replace(/\D/g, '') : '');
 
-/** ID bot (nomor dan LID) untuk mengenali mention. LID diambil sekali dari WAHA lalu disimpan di pengaturan. */
+/** LID (ID tersembunyi WhatsApp) untuk sebuah nomor; diambil sekali dari WAHA lalu disimpan di pengaturan. */
+async function lidUntuk(nomor: string) {
+  const [row] = await db().select().from(pengaturan).where(eq(pengaturan.kunci, `${KUNCI_LID}:${nomor}`)).limit(1);
+  if (row?.nilai) return row.nilai;
+  const lid = digit(await lidNomor(nomor).catch(() => null));
+  if (lid) {
+    await db()
+      .insert(pengaturan)
+      .values({ kunci: `${KUNCI_LID}:${nomor}`, nilai: lid })
+      .onConflictDoUpdate({ target: pengaturan.kunci, set: { nilai: lid, updatedAt: new Date() } });
+  }
+  return lid;
+}
+
+/** ID bot (nomor dan LID) untuk mengenali mention. */
 async function idBot(me: unknown) {
   const m = (me ?? {}) as { id?: string; lid?: string };
   let nomor = digit(m.id);
   if (!nomor) nomor = digit((await statusSesi()).me?.id);
-  let lid = digit(m.lid);
-  if (!lid && nomor) {
-    const [row] = await db().select().from(pengaturan).where(eq(pengaturan.kunci, `${KUNCI_LID}:${nomor}`)).limit(1);
-    lid = row?.nilai ?? '';
-    if (!lid) {
-      lid = digit(await lidNomor(nomor).catch(() => null));
-      if (lid) {
-        await db()
-          .insert(pengaturan)
-          .values({ kunci: `${KUNCI_LID}:${nomor}`, nilai: lid })
-          .onConflictDoUpdate({ target: pengaturan.kunci, set: { nilai: lid, updatedAt: new Date() } });
-      }
-    }
-  }
+  const lid = digit(m.lid) || (nomor ? await lidUntuk(nomor) : '');
   return new Set([nomor, lid].filter(Boolean));
+}
+
+/** Ubah 08xx / 8xx / +62 xx-xx / 62xx menjadi 62xx. */
+export function normalNomor(v: string) {
+  let n = v.replace(/\D/g, '');
+  if (n.startsWith('0')) n = '62' + n.slice(1);
+  else if (n.startsWith('8')) n = '62' + n;
+  return n;
+}
+
+/** Daftar nomor yang boleh memakai bot (62xx). Kosong berarti semua anggota grup boleh. */
+export async function nomorIzinBot() {
+  const [row] = await db().select().from(pengaturan).where(eq(pengaturan.kunci, KUNCI_NOMOR_IZIN)).limit(1);
+  return (row?.nilai ?? '').split(/[,;\n]+/).map(normalNomor).filter((n) => n.length >= 8);
+}
+
+/** Semua ID pengirim di payload (nomor maupun LID), sebagai digit. GOWS menaruh nomor asli di Info.SenderAlt. */
+function idPengirim(payload: unknown) {
+  const r = (payload ?? {}) as Record<string, unknown>;
+  const info = ((r._data as Record<string, unknown> | undefined)?.Info ?? {}) as Record<string, unknown>;
+  return new Set([r.participant, r.author, info.Sender, info.SenderAlt].map(digit).filter(Boolean));
+}
+
+/** Apakah pengirim termasuk nomor yang diizinkan (dicocokkan lewat nomor maupun LID-nya). */
+async function pengirimDiizinkan(payload: unknown) {
+  const izin = await nomorIzinBot();
+  if (izin.length === 0) return true;
+  const ids = idPengirim(payload);
+  if (izin.some((n) => ids.has(n))) return true;
+  const lids = await Promise.all(izin.map(lidUntuk));
+  return lids.some((l) => l && ids.has(l));
 }
 
 /** Semua ID yang di-mention di payload (kunci mentionedIds / mentionedJID / ... di level mana pun), sebagai digit. */
@@ -244,6 +277,9 @@ export async function tanganiPesanBot(payload: unknown, me: unknown) {
     db().update(botTanya).set({ ...data, durasiMs: Date.now() - mulai }).where(eq(botTanya.id, baris.id));
 
   try {
+    // Nomor yang tidak diizinkan diabaikan tanpa balasan supaya grup tidak ramai; tetap tercatat di log.
+    if (!(await pengirimDiizinkan(payload))) return selesai({ status: 'dibatasi', alasan: 'Nomor pengirim tidak diizinkan memakai bot.' });
+
     if (!t.pertanyaan) {
       await kirimTeks(chatId, 'Tulis pertanyaannya setelah menyebut saya, mis. *@saya kapan batas unggah Bab 3?*', pesan.id);
       return selesai({ status: 'di_luar_topik', alasan: 'Pertanyaan kosong.' });

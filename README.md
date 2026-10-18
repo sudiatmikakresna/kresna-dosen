@@ -230,6 +230,9 @@ pesan grup ──webhook WAHA (HMAC)──► bot di-mention / pesan bot dibalas
   datanya sama dengan yang tampil publik di situs itu. Aktif bila `SPK_TURSO_DATABASE_URL` diatur. Buat token read-only:
   `turso db tokens create <nama-db> --read-only`, lalu isi `SPK_TURSO_DATABASE_URL` (libsql://…, sama dengan
   `TURSO_DATABASE_URL` di project idea-spk) dan `SPK_TURSO_AUTH_TOKEN` di environment variable Vercel kresna-dosen.
+- Siapa yang boleh bertanya diatur di halaman bot (**Siapa yang boleh bertanya**, kunci `wa_bot_nomor_izin` di tabel
+  `pengaturan`; awalnya hanya 081934374633). Pengirim dicocokkan lewat nomor maupun LID-nya (diambil dari WAHA).
+  Mention dari nomor lain diabaikan tanpa balasan dan tercatat "Dibatasi". Kosongkan daftar untuk mengizinkan semua.
 - Batas: 5 pertanyaan per orang per 10 menit dan 100 per grup per hari. Webhook ulangan untuk pesan yang sama tidak
   menghasilkan jawaban ganda.
 - Semua pertanyaan, jawaban, status, dan pemakaian token tercatat di tabel `bot_tanya` dan tampil di halaman bot.
