@@ -7,6 +7,7 @@ import { SubmitButton } from '@/components/SubmitButton';
 import { waktu } from '@/lib/labels';
 import { BATAS_KARAKTER_DOKUMEN, MODEL_BOT, botSiap } from '@/lib/bot-wa';
 import { webhookSiap } from '@/lib/wa-pesan';
+import { spkSiap } from '@/lib/spk';
 
 export const metadata = { title: 'Bot tanya-jawab WhatsApp' };
 
@@ -58,6 +59,10 @@ export default async function BotPage({ searchParams }: { searchParams: Promise<
             <ul className="list-group list-group-flush small">
               <li className="list-group-item"><span className={`badge me-2 ${botSiap() ? 'text-bg-success' : 'text-bg-danger'}`}>{botSiap() ? 'OK' : 'Belum'}</span><code>ANTHROPIC_API_KEY</code></li>
               <li className="list-group-item"><span className={`badge me-2 ${webhookSiap() ? 'text-bg-success' : 'text-bg-danger'}`}>{webhookSiap() ? 'OK' : 'Belum'}</span>Webhook WAHA (<code>WAHA_WEBHOOK_HMAC_KEY</code>)</li>
+              <li className="list-group-item">
+                <span className={`badge me-2 ${spkSiap() ? 'text-bg-success' : 'text-bg-secondary'}`}>{spkSiap() ? 'OK' : 'Opsional'}</span>
+                Data kelas SPK dari idea-spk (<code>SPK_TURSO_DATABASE_URL</code>, <code>SPK_TURSO_AUTH_TOKEN</code> read-only)
+              </li>
               <li className="list-group-item">
                 <span className={`badge me-2 ${grup.length ? 'text-bg-success' : 'text-bg-warning'}`}>{grup.length}</span>
                 grup dengan bot aktif{grup.length ? `: ${grup.map((g) => g.nama ?? g.chatId).join(', ')}` : ''}.{' '}

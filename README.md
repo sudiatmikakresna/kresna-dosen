@@ -225,6 +225,11 @@ pesan grup ──webhook WAHA (HMAC)──► bot di-mention / pesan bot dibalas
   ringkas seperti laporan grup: bab, versi, tanggal unggah/tanggapan, status, jumlah catatan, dan progres perbaikan per
   sub bab. Isi catatan revisi, NIM, dan isi berkas tidak pernah dikirim ke Claude.
 - Pemicu: mention nomor bot (`@nomor`) atau membalas pesan bot. Pesan tanpa mention tidak dikirim ke Claude.
+- Data kelas SPK (opsional): tool `data_kelas_spk` (`src/lib/spk.ts`) membaca database Turso aplikasi
+  [idea-spk](https://idea-spk.vercel.app): ide studi kasus per NIM, algoritma pilihan, dan link tugas. Hanya `SELECT`;
+  datanya sama dengan yang tampil publik di situs itu. Aktif bila `SPK_TURSO_DATABASE_URL` diatur. Buat token read-only:
+  `turso db tokens create <nama-db> --read-only`, lalu isi `SPK_TURSO_DATABASE_URL` (libsql://…, sama dengan
+  `TURSO_DATABASE_URL` di project idea-spk) dan `SPK_TURSO_AUTH_TOKEN` di environment variable Vercel kresna-dosen.
 - Batas: 5 pertanyaan per orang per 10 menit dan 100 per grup per hari. Webhook ulangan untuk pesan yang sama tidak
   menghasilkan jawaban ganda.
 - Semua pertanyaan, jawaban, status, dan pemakaian token tercatat di tabel `bot_tanya` dan tampil di halaman bot.
