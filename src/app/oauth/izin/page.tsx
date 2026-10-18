@@ -11,7 +11,7 @@ export const dynamic = 'force-dynamic';
 
 const KEMAMPUAN = {
   waha: 'Membaca status, daftar chat, dan pesan WhatsApp di nomor yang tertaut ke WAHA, serta mengirim pesan teks atas nama nomor itu.',
-  bimbingan: 'Membaca mahasiswa dan berkas bimbingan, menulis draf catatan revisi, dan mengirim keputusan revisi.',
+  bimbingan: 'Membaca mahasiswa dan berkas bimbingan, menulis draf catatan revisi, mengirim keputusan revisi, dan membaca data kelas SPK (idea-spk).',
   siska: 'Membaca kelas, jadwal, dan presensi kuliah di SISKA dengan akun dosen, serta memulai pertemuan dan mengubah atau menutup presensi.',
 };
 

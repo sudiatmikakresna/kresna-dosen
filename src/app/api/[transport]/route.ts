@@ -8,6 +8,7 @@ import { metadataPath } from '@/lib/oauth';
 import { driveViewUrl } from '@/lib/google';
 import { chatTelegram, esc, kirimTelegram, telegramSiap } from '@/lib/telegram';
 import { berkasDikirimBaruIni, kirimKeGrup } from '@/lib/wa-laporan';
+import { dataKelasSpk, spkSiap } from '@/lib/spk';
 import { AMBANG_PERSEN, rekapPerbaikan, rekapUntukAgent, simpanPenilaian } from '@/lib/perbaikan';
 import {
   aktivitasMahasiswa,
@@ -283,6 +284,25 @@ const handler = createMcpHandler(
           return json(await kirimRevisi(berkas_id, keputusan, ringkasan, 'mcp'));
         } catch (e) {
           return gagal((e as Error).message);
+        }
+      },
+    );
+
+    server.registerTool(
+      'data_kelas_spk',
+      {
+        title: 'Data kelas SPK (idea-spk)',
+        description:
+          'Membaca database Turso aplikasi idea-spk (read-only): ide studi kasus per NIM, 3 algoritma pilihan, link tugas Google Docs, ' +
+          'rekap siapa yang belum kumpul tugas, dan frekuensi algoritma. Filter opsional nim (sebagian) atau algoritma.',
+        inputSchema: { nim: z.string().max(20).optional(), algoritma: z.enum(['SAW', 'WP', 'TOPSIS', 'AHP']).optional() },
+      },
+      async ({ nim, algoritma }) => {
+        if (!spkSiap()) return gagal('SPK_TURSO_DATABASE_URL belum diatur di environment variable kresna-dosen (atau belum redeploy).');
+        try {
+          return json(await dataKelasSpk({ nim, algoritma }));
+        } catch (e) {
+          return gagal(`Gagal membaca database idea-spk: ${(e as Error).message}`);
         }
       },
     );
