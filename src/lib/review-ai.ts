@@ -253,7 +253,8 @@ export async function reviewBerkas(berkasId: number): Promise<HasilReview> {
 const tanggalPanjang = () =>
   new Intl.DateTimeFormat('id-ID', { timeZone: 'Asia/Makassar', weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }).format(new Date());
 
-function teksPengumuman(dikirim: HasilReview[]) {
+/** Teks pengumuman grup: nama, bab/versi, dan keputusan saja (tanpa NIM dan isi catatan). */
+export function teksPengumuman(dikirim: Pick<HasilReview, 'nama' | 'label' | 'keputusan'>[]) {
   const baris = dikirim.map((h) => `- ${h.nama} · ${h.label} · ${h.keputusan === 'disetujui' ? 'Disetujui ✅' : 'Perlu revisi'}`);
   return `📋 *Hasil review berkas skripsi* — ${tanggalPanjang()}\n\n${baris.join('\n')}\n\nCatatan lengkap ada di aplikasi: menu *Berkas & Revisi*.`;
 }

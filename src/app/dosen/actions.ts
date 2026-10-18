@@ -282,3 +282,33 @@ export async function aturNomorBot(form: FormData) {
   revalidatePath('/dosen/whatsapp/bot');
   redirect('/dosen/whatsapp/bot?ok=nomor');
 }
+
+/**
+ * Dosen menyetujui berkas langsung dari panel, lalu hasilnya diumumkan ke grup WhatsApp tujuan (format sama dengan
+ * review otomatis: nama, bab/versi, keputusan). Catatan draf yang masih ada ikut terkirim ke mahasiswa.
+ * Gagal mengirim WhatsApp tidak membatalkan persetujuan.
+ */
+export async function setujuiDanUmumkan(berkasId: number) {
+  await wajibDosen();
+  const { detailBerkas } = await import('@/lib/service');
+  const { teksPengumuman } = await import('@/lib/review-ai');
+  const { labelJenisPendek, terpisah } = await import('@/lib/labels');
+  const d = await detailBerkas(berkasId);
+  if (!d) redirect('/dosen?error=' + encodeURIComponent('Berkas tidak ditemukan.'));
+  const { berkas: b, mahasiswa: m } = d;
+  if (b.status === 'disetujui' || b.status === 'digantikan') {
+    redirect(`/dosen/berkas/${berkasId}?error=` + encodeURIComponent(b.status === 'disetujui' ? 'Berkas ini sudah disetujui.' : 'Berkas ini sudah digantikan versi baru.'));
+  }
+  await kirimRevisi(berkasId, 'disetujui', 'Disetujui oleh dosen pembimbing. Silakan lanjut ke tahap berikutnya.');
+  const label = terpisah(b.jenis) ? `${labelJenisPendek(b.jenis)}: ${b.fileName ?? 'berkas'}` : `${labelJenisPendek(b.jenis)} v${b.versi}`;
+  let wa: string;
+  try {
+    const hasil = await kirimKeGrup(teksPengumuman([{ nama: m.nama, label, keputusan: 'disetujui' }]));
+    const ok = hasil.filter((h) => h.terkirim).map((h) => h.grup);
+    wa = ok.length ? `Diumumkan di grup WhatsApp: ${ok.join(', ')}.` : `Gagal mengumumkan di WhatsApp: ${hasil.map((h) => h.error).join('; ')}`;
+  } catch (e) {
+    wa = `Belum diumumkan di WhatsApp: ${(e as Error).message}`;
+  }
+  segarkan(berkasId);
+  redirect(`/dosen/berkas/${berkasId}?ok=` + encodeURIComponent(`${m.nama} · ${label} disetujui dan mahasiswa sudah diberi tahu. ${wa}`));
+}

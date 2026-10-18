@@ -7,7 +7,7 @@ import { Preview } from '@/components/Preview';
 import { StatusBadge } from '@/components/StatusBadge';
 import { SubmitButton } from '@/components/SubmitButton';
 import { IconRobot } from '@/components/icons';
-import { kirimKeMahasiswa, simpanCatatan, simpanRingkasan, tambahCatatan, ubahStatusCatatan } from '@/app/dosen/actions';
+import { kirimKeMahasiswa, setujuiDanUmumkan, simpanCatatan, simpanRingkasan, tambahCatatan, ubahStatusCatatan } from '@/app/dosen/actions';
 
 export const metadata = { title: 'Tinjau Berkas' };
 
@@ -94,8 +94,9 @@ function KartuPerbaikan({ r }: { r: RekapPerbaikan }) {
   );
 }
 
-export default async function TinjauBerkas({ params }: { params: Promise<{ id: string }> }) {
+export default async function TinjauBerkas({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ ok?: string; error?: string }> }) {
   const id = Number((await params).id);
+  const { ok, error } = await searchParams;
   const d = await detailBerkas(id);
   if (!d) notFound();
   const { berkas: b, mahasiswa: m } = d;
@@ -123,6 +124,9 @@ export default async function TinjauBerkas({ params }: { params: Promise<{ id: s
           </div>
         </div>
       </div>
+
+      {ok && <div className="alert alert-success">{ok}</div>}
+      {error && <div className="alert alert-danger">{error}</div>}
 
       {b.catatan && (
         <div className="alert alert-light border small"><strong>Catatan mahasiswa:</strong> <span className="pre-wrap">{b.catatan}</span></div>
@@ -213,6 +217,21 @@ export default async function TinjauBerkas({ params }: { params: Promise<{ id: s
               </details>
             </div>
           </div>
+
+          {b.status !== 'disetujui' && b.status !== 'digantikan' && (
+            <form action={setujuiDanUmumkan.bind(null, b.id)} className="card border-success mb-4">
+              <div className="card-body d-flex flex-wrap align-items-center justify-content-between gap-2">
+                <div className="small">
+                  <div className="fw-semibold">Setujui langsung</div>
+                  <div className="text-body-secondary">
+                    Bab disetujui tanpa menunggu syarat 70%, mahasiswa diberi tahu, dan grup WhatsApp tujuan menerima pengumuman
+                    (nama, bab/versi, keputusan).{draf.length > 0 && ` ${draf.length} catatan draf ikut terkirim sebagai catatan.`}
+                  </div>
+                </div>
+                <SubmitButton className="btn btn-success" pendingText="Menyetujui…" confirm={`Setujui ${terpisah(b.jenis) ? b.fileName ?? 'berkas ini' : `${labelJenisPendek(b.jenis)} versi ${b.versi}`} milik ${m.nama} dan umumkan di grup WhatsApp?`}>Setujui &amp; umumkan di WhatsApp</SubmitButton>
+              </div>
+            </form>
+          )}
 
           <form action={kirimKeMahasiswa.bind(null, b.id)} className="card mb-4">
             <div className="card-header fw-semibold">Kirim ke mahasiswa</div>
