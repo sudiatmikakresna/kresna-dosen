@@ -7,6 +7,7 @@ import { SubmitButton } from '@/components/SubmitButton';
 import { waktu } from '@/lib/labels';
 import { BATAS_KARAKTER_DOKUMEN, MODEL_BOT, botSiap, nomorIzinBot } from '@/lib/bot-wa';
 import { webhookSiap } from '@/lib/wa-pesan';
+import { bengkelSiap } from '@/lib/bengkel';
 import { spkSiap } from '@/lib/spk';
 
 export const metadata = { title: 'Bot tanya-jawab WhatsApp' };
@@ -64,6 +65,10 @@ export default async function BotPage({ searchParams }: { searchParams: Promise<
               <li className="list-group-item">
                 <span className={`badge me-2 ${spkSiap() ? 'text-bg-success' : 'text-bg-secondary'}`}>{spkSiap() ? 'OK' : 'Opsional'}</span>
                 Data kelas SPK dari idea-spk (<code>SPK_TURSO_DATABASE_URL</code>, <code>SPK_TURSO_AUTH_TOKEN</code> read-only)
+              </li>
+              <li className="list-group-item">
+                <span className={`badge me-2 ${bengkelSiap() ? 'text-bg-success' : 'text-bg-secondary'}`}>{bengkelSiap() ? 'OK' : 'Opsional'}</span>
+                Poin dan progres Bengkel Pemrograman Mobile (<code>BENGKEL_DATABASE_URL</code>, Neon schema <code>bengkel</code>, read-only)
               </li>
               <li className="list-group-item">
                 <span className={`badge me-2 ${grup.length ? 'text-bg-success' : 'text-bg-warning'}`}>{grup.length}</span>

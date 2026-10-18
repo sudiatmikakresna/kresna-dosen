@@ -230,6 +230,12 @@ pesan grup ──webhook WAHA (HMAC)──► bot di-mention / pesan bot dibalas
   datanya sama dengan yang tampil publik di situs itu. Aktif bila `SPK_TURSO_DATABASE_URL` diatur. Buat token read-only:
   `turso db tokens create <nama-db> --read-only`, lalu isi `SPK_TURSO_DATABASE_URL` (libsql://…, sama dengan
   `TURSO_DATABASE_URL` di project idea-spk) dan `SPK_TURSO_AUTH_TOKEN` di environment variable Vercel kresna-dosen.
+- Data Bengkel Pemrograman Mobile (opsional): tool `poin_kelas_bengkel`, `status_mahasiswa_bengkel`, dan
+  `aktivitas_kelas_bengkel` (`src/lib/bengkel.ts`) membaca salinan database Bengkel Flutter (kresna.blog) di Neon,
+  schema `bengkel`, yang disinkron tiap ±5 menit oleh `npm run sinkron-neon` di server Bengkel. Aturan poin: soal D1/D2
+  yang lulus = 2, D3 = 5, dihitung per tanggal sebelum 22.00 WITA, target 10. Kelas dikenali dari ID grup WhatsApp
+  (tabel `bengkel.kelas`), jadi di grup kelas pertanyaan tidak perlu menyebut kelasnya. Aktif bila
+  `BENGKEL_DATABASE_URL` diatur; pakai role Neon yang hanya punya hak `SELECT` pada schema `bengkel`.
 - Siapa yang boleh bertanya diatur di halaman bot (**Siapa yang boleh bertanya**, kunci `wa_bot_nomor_izin` di tabel
   `pengaturan`; awalnya hanya 081934374633). Pengirim dicocokkan lewat nomor maupun LID-nya (diambil dari WAHA).
   Mention dari nomor lain diabaikan tanpa balasan dan tercatat "Dibatasi". Kosongkan daftar untuk mengizinkan semua.
