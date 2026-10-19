@@ -5,6 +5,7 @@ import { metadataPath } from '@/lib/oauth';
 import { siskaSiap } from '@/lib/siska/client';
 import { getKelas, jadwalTanggal, listKelas, mulaiSesi } from '@/lib/siska/kelas';
 import { getPresensi, tutupPresensi, ubahPresensi } from '@/lib/siska/presensi';
+import { daftarBimbingan, daftarKaryaAkhir, setujuiBimbingan } from '@/lib/siska/bimbingan';
 
 export const maxDuration = 60;
 
@@ -28,8 +29,65 @@ const aman =
 const idKelas = z.number().int().describe('id kelas kuliah SISKA (kelas_id dari daftar_kelas)');
 const idPertemuan = z.number().int().describe('id pertemuan SISKA (pertemuan_id dari detail_kelas atau jadwal_mengajar)');
 
+const jenisKarya = z
+  .enum(['karya_terapan', 'skripsi'])
+  .describe('karya_terapan = menu Daftar Karya Terapan (D4/Sarjana Terapan), skripsi = menu Daftar Skripsi');
+const idKarya = z.number().int().describe('id_karya_akhir dari daftar_mahasiswa_karya_akhir');
+
 const handler = createMcpHandler(
   (server) => {
+    server.registerTool(
+      'daftar_mahasiswa_karya_akhir',
+      {
+        title: 'Daftar mahasiswa bimbingan karya akhir',
+        description:
+          'Mahasiswa skripsi atau karya terapan yang dibimbing dosen di SISKA (peran pembimbing): id_karya_akhir, NIM, nama, tahapan ' +
+          '(Proposal / Skripsi / Karya Terapan), tahap detail, status, judul, dan pembimbing. Bawaan hanya status Aktif.',
+        inputSchema: {
+          jenis: jenisKarya,
+          cari: z.string().max(100).optional().describe('Sebagian nama atau NIM'),
+          hanya_aktif: z.boolean().optional().describe('Bawaan true'),
+        },
+        annotations: BACA,
+      },
+      aman(async ({ jenis, cari, hanya_aktif }) => json(await daftarKaryaAkhir(jenis, { cari, hanyaAktif: hanya_aktif }))),
+    );
+
+    server.registerTool(
+      'daftar_bimbingan_karya_akhir',
+      {
+        title: 'Daftar bimbingan karya akhir',
+        description:
+          'Catatan bimbingan satu mahasiswa di SISKA: id_bimbingan, bimbingan ke-, tanggal, fase, topik, dosen, sudah disetujui atau belum, ' +
+          'dan sumber (jadwal kelas bimbingan / diajukan mahasiswa). Bawaan hanya yang belum disetujui.',
+        inputSchema: {
+          jenis: jenisKarya,
+          id_karya_akhir: idKarya,
+          status: z.enum(['belum', 'disetujui', 'semua']).optional().describe('Bawaan belum'),
+        },
+        annotations: BACA,
+      },
+      aman(async ({ jenis, id_karya_akhir, status }) => json(await daftarBimbingan(jenis, id_karya_akhir, status ?? 'belum'))),
+    );
+
+    server.registerTool(
+      'setujui_bimbingan_karya_akhir',
+      {
+        title: 'Setujui bimbingan karya akhir',
+        description:
+          'Menyetujui catatan bimbingan di SISKA atas nama dosen (sama dengan tombol "Setujui Terpilih"). Persetujuan tidak bisa dibatalkan ' +
+          'dari SISKA, jadi tampilkan dulu daftar bimbingan yang akan disetujui (mahasiswa, tanggal, topik) dan minta konfirmasi dosen. ' +
+          'Hanya id_bimbingan milik karya akhir itu yang diterima; hasilnya dibaca ulang dari SISKA.',
+        inputSchema: {
+          jenis: jenisKarya,
+          id_karya_akhir: idKarya,
+          id_bimbingan: z.array(z.number().int()).min(1).max(50).describe('id_bimbingan dari daftar_bimbingan_karya_akhir'),
+        },
+        annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: true },
+      },
+      aman(async ({ jenis, id_karya_akhir, id_bimbingan }) => json(await setujuiBimbingan(jenis, id_karya_akhir, id_bimbingan))),
+    );
+
     server.registerTool(
       'daftar_kelas',
       {

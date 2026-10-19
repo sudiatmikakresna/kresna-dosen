@@ -40,6 +40,9 @@ const TOOLS_SISKA: [string, string][] = [
   ['mulai_pertemuan', 'Memulai pertemuan yang masih terjadwal'],
   ['ubah_presensi', 'Mengisi Hadir/Sakit/Izin/Alfa untuk mahasiswa tertentu'],
   ['tutup_presensi', 'Mengisi Alfa untuk mahasiswa yang belum punya status'],
+  ['daftar_mahasiswa_karya_akhir', 'Mahasiswa skripsi / karya terapan yang Anda bimbing'],
+  ['daftar_bimbingan_karya_akhir', 'Catatan bimbingan satu mahasiswa (bawaan: yang belum disetujui)'],
+  ['setujui_bimbingan_karya_akhir', 'Menyetujui catatan bimbingan di SISKA atas nama Anda'],
 ];
 
 export default async function McpPage() {
@@ -165,7 +168,7 @@ export default async function McpPage() {
               ))}
             </ul>
             <div className="card-footer small text-body-secondary">
-              Memakai <code>SISKA_COOKIE</code> akun dosen. Tool yang mengubah presensi berjalan atas nama Anda di SISKA.
+              Memakai <code>SISKA_COOKIE</code> akun dosen. Tool yang mengubah presensi atau menyetujui bimbingan berjalan atas nama Anda di SISKA.
             </div>
           </div>
         </div>

@@ -100,14 +100,18 @@ Tiga server MCP bisa dipasang sebagai **custom connector** di Claude chat (claud
 | --- | --- | --- |
 | WhatsApp (WAHA) | `https://kresna-dosen.vercel.app/api/waha/mcp` | `status_whatsapp`, `daftar_chat`, `daftar_grup`, `baca_pesan`, `riwayat_grup_tersimpan`, `cek_nomor`, `kirim_pesan`, `tandai_dibaca` |
 | Bimbingan Skripsi | `https://kresna-dosen.vercel.app/api/mcp` | tool review di atas |
-| SISKA (presensi kuliah) | `https://kresna-dosen.vercel.app/api/siska/mcp` | `daftar_kelas`, `jadwal_mengajar`, `detail_kelas`, `lihat_presensi`, `mulai_pertemuan`, `ubah_presensi`, `tutup_presensi` |
+| SISKA (presensi kuliah, bimbingan karya akhir) | `https://kresna-dosen.vercel.app/api/siska/mcp` | `daftar_kelas`, `jadwal_mengajar`, `detail_kelas`, `lihat_presensi`, `mulai_pertemuan`, `ubah_presensi`, `tutup_presensi`, `daftar_mahasiswa_karya_akhir`, `daftar_bimbingan_karya_akhir`, `setujui_bimbingan_karya_akhir` |
 
 Pasang: Claude → **Customize → Connectors → Add → Custom → Web** → isi nama dan URL → **Add** → **Connect**.
 Claude membuka `/oauth/izin`; masuk sebagai dosen lalu klik **Izinkan**. Koneksi aktif terlihat dan bisa dicabut di
 **Panel dosen → Koneksi MCP**.
 
 Connector SISKA memakai `SISKA_COOKIE` (cookie `remember_web_…` akun dosen, sama dengan aplikasi absensi-siska) di
-environment Vercel; client SISKA ada di `src/lib/siska/`. `ubah_presensi` dan `tutup_presensi` mengubah data SISKA
+environment Vercel; client SISKA ada di `src/lib/siska/`. Persetujuan bimbingan skripsi/karya terapan
+(`src/lib/siska/bimbingan.ts`) memakai endpoint yang sama dengan menu Tingkat Akhir → Bimbingan di SISKA: datatable
+`/dosen/{skripsi|karya-terapan}/{id}/bimbingan/datatable` dan Inertia POST `…/bimbingan/bulk-approve` dengan
+`{ ids }`; hanya id milik karya akhir itu yang dikirim dan statusnya dibaca ulang setelahnya.
+`ubah_presensi`, `tutup_presensi`, dan `setujui_bimbingan_karya_akhir` mengubah data SISKA
 atas nama dosen, jadi biarkan pada **Needs approval**.
 
 Cara kerjanya (aplikasi menjadi server otorisasi OAuth 2.1 sendiri, tanpa layanan luar):
