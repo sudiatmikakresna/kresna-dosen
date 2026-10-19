@@ -443,7 +443,9 @@ const TOOLS_AKSI: Anthropic.Beta.BetaTool[] = [
 const MAKS_PUTARAN = 4;
 
 // Memory percakapan (short-term, sliding window): tanya-jawab terakhir dari penanya yang sama di grup yang sama.
-const MAKS_RIWAYAT = 6;
+const MAKS_RIWAYAT = 50;
+// Penahan biaya: riwayat dipotong dari yang paling lama bila total teksnya melebihi batas ini (±30 ribu token).
+const BATAS_KARAKTER_RIWAYAT = 120_000;
 const JENDELA_RIWAYAT_MENIT = 24 * 60; // 24 jam
 const PERINTAH_RESET = /^(mulai baru|reset|lupakan( percakapan)?|topik baru)[.!]?$/i;
 const ALASAN_RESET = 'Percakapan dimulai ulang.';
@@ -453,7 +455,8 @@ type Giliran = { pertanyaan: string; jawaban: string };
 
 /**
  * Riwayat percakapan penanya ini DI GRUP INI SAJA (filter chatId + pengirimId): riwayat dari grup lain tidak pernah
- * dibawa. Maksimal MAKS_RIWAYAT tanya-jawab dalam JENDELA_RIWAYAT_MENIT, setelah reset terakhir.
+ * dibawa. Maksimal MAKS_RIWAYAT tanya-jawab dalam JENDELA_RIWAYAT_MENIT, setelah reset terakhir, dan total teksnya
+ * tidak melebihi BATAS_KARAKTER_RIWAYAT (yang paling lama dibuang lebih dulu).
  */
 async function riwayatPercakapan(chatId: string, pengirimId: string | null, sebelumId: number): Promise<Giliran[]> {
   if (!pengirimId) return [];
@@ -472,10 +475,18 @@ async function riwayatPercakapan(chatId: string, pengirimId: string | null, sebe
     .orderBy(desc(botTanya.id))
     .limit(MAKS_RIWAYAT);
   const sejakReset = baris.findIndex((b) => b.alasan === ALASAN_RESET);
-  return (sejakReset === -1 ? baris : baris.slice(0, sejakReset))
+  const giliran = (sejakReset === -1 ? baris : baris.slice(0, sejakReset))
     .filter((b) => b.jawaban && b.pertanyaan !== '(kosong)')
-    .reverse()
     .map((b) => ({ pertanyaan: b.pertanyaan, jawaban: tanpaSumber(b.jawaban!) }));
+  // Terbaru dulu: ambil selama total teks masih muat, lalu balik ke urutan kronologis.
+  const muat: Giliran[] = [];
+  let total = 0;
+  for (const g of giliran) {
+    total += g.pertanyaan.length + g.jawaban.length;
+    if (total > BATAS_KARAKTER_RIWAYAT) break;
+    muat.push(g);
+  }
+  return muat.reverse();
 }
 
 async function jalankanTool(nama: string, input: unknown, ctx: Konteks, diizinkan: Set<string>) {
