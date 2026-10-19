@@ -4,6 +4,8 @@ import { db, waGrup } from '@/db';
 import { siskaSiap } from './siska/client';
 import { getKelas, jadwalTanggal, listKelas, type Kelas } from './siska/kelas';
 import { getPresensi } from './siska/presensi';
+import { daftarBimbingan, type JenisKarya } from './siska/bimbingan';
+import { cariMahasiswaKaryaAkhir } from './bot-aksi';
 
 /**
  * Tool SISKA untuk bot WhatsApp, HANYA membaca: jadwal mengajar, presensi satu pertemuan, dan rekap
@@ -163,5 +165,40 @@ export async function rekapKetidakhadiranSiska(f: { kelas?: string; minimal?: nu
       .filter((d) => d.total === minimal - 1)
       .map((d) => ({ nim: d.nim, nama: d.nama, alfa: d.Alfa.length, izin: d.Izin.length })),
     statusKosong: daftar.filter((d) => d.kosong.length).map((d) => ({ nama: d.nama, pertemuanKe: d.kosong })),
+  };
+}
+
+/**
+ * Bimbingan skripsi/karya terapan di SISKA yang belum disetujui: untuk satu mahasiswa (daftar per bimbingan), atau
+ * rekap semua mahasiswa bimbingan aktif beserta jumlah yang menunggu persetujuan.
+ */
+export async function bimbinganBelumDisetujuiSiska(f: { mahasiswa?: string; jenis?: JenisKarya }) {
+  const { semua, cocok } = await cariMahasiswaKaryaAkhir(f.mahasiswa ?? '', f.jenis);
+  if (f.mahasiswa?.trim()) {
+    if (cocok.length !== 1) {
+      return { hasil: cocok.length ? 'perlu_nama_lengkap' : 'tidak_ditemukan', kandidat: cocok.slice(0, 10).map((k) => `${k.nama} (${k.nim})`) };
+    }
+    const k = cocok[0];
+    const belum = await daftarBimbingan(k.jenis, k.id_karya_akhir, 'belum');
+    return {
+      mahasiswa: `${k.nama} (${k.nim})`,
+      jenis: k.jenis === 'skripsi' ? 'Skripsi' : 'Karya Terapan',
+      tahapan: k.tahapan,
+      judul: k.judul,
+      belumDisetujui: belum.map((b) => ({ ke: b.bimbingan_ke, tanggal: b.tanggal, fase: b.fase, topik: b.topik.slice(0, 200), sumber: b.sumber })),
+    };
+  }
+  const rekap = await Promise.all(
+    semua.map(async (k) => ({
+      mahasiswa: `${k.nama} (${k.nim})`,
+      jenis: k.jenis === 'skripsi' ? 'Skripsi' : 'Karya Terapan',
+      tahapan: k.tahapan,
+      belumDisetujui: (await daftarBimbingan(k.jenis, k.id_karya_akhir, 'belum')).length,
+    })),
+  );
+  return {
+    jumlahMahasiswa: rekap.length,
+    menungguPersetujuan: rekap.filter((r) => r.belumDisetujui > 0),
+    semuaSudahDisetujui: rekap.filter((r) => r.belumDisetujui === 0).map((r) => r.mahasiswa),
   };
 }

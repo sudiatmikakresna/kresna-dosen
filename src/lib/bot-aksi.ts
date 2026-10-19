@@ -4,6 +4,7 @@ import { botAksi, db } from '@/db';
 import { cariKelas, perluKelas } from './bot-siska';
 import { getKelas, mulaiSesi, type Pertemuan } from './siska/kelas';
 import { getPresensi, ubahPresensi, type Peserta } from './siska/presensi';
+import { daftarBimbingan, daftarKaryaAkhir, setujuiBimbingan, type JenisKarya, type KaryaAkhir } from './siska/bimbingan';
 
 /**
  * Absensi SISKA lewat bot WhatsApp, dengan konfirmasi dua langkah:
@@ -11,6 +12,7 @@ import { getPresensi, ubahPresensi, type Peserta } from './siska/presensi';
  *      kelas, pertemuan, dan mahasiswa, lalu menyimpan RENCANA di bot_aksi. Belum ada yang berubah di SISKA.
  *   2. Bot mengirim ringkasan rencana (teks dari kode ini, bukan dari Claude). Dosen membalas "ya".
  *      Yang dijalankan persis isi rencana, sekali, sebelum kedaluwarsa. Claude tidak ikut di langkah ini.
+ * Persetujuan bimbingan skripsi/karya terapan memakai alur yang sama (rencana_setujui_bimbingan_siska → "ya").
  * Menutup presensi (Alfa massal) dan mengakhiri sesi sengaja tidak tersedia.
  */
 
@@ -29,6 +31,13 @@ type DataUbah = {
   perubahan: { nim: string; nama: string; status: Kode; keterangan?: string }[];
 };
 type DataMulai = { kelasId: number; pertemuanId: number; kelas: string; pertemuanKe: number };
+type DataSetuju = {
+  jenis: JenisKarya;
+  idKaryaAkhir: number;
+  nim: string;
+  nama: string;
+  bimbingan: { id: number; ke: number | null; tanggal: string; topik: string }[];
+};
 
 export type Konteks = { chatId: string; pengirimId: string | null; bolehMengubah: boolean };
 
@@ -36,7 +45,7 @@ const hariIni = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Makassa
 const kata = (s: string) => s.toLowerCase().normalize('NFKD').replace(/[^a-z0-9 ]/g, ' ').split(/\s+/).filter(Boolean);
 
 /** Satu peserta yang cocok dengan NIM (penuh atau akhiran) atau semua kata nama; selain itu daftar kandidat. */
-export function cocokPeserta(cari: string, peserta: Peserta[]) {
+export function cocokPeserta<T extends Pick<Peserta, 'nim' | 'nama'>>(cari: string, peserta: T[]): T[] {
   const c = cari.trim();
   const digit = c.replace(/\D/g, '');
   if (digit.length >= 4 && digit.length === c.replace(/\s/g, '').length) {
@@ -50,7 +59,7 @@ export function cocokPeserta(cari: string, peserta: Peserta[]) {
   });
 }
 
-async function simpanRencana(ctx: Konteks, jenis: 'ubah_presensi' | 'mulai_sesi', data: DataUbah | DataMulai, ringkasan: string) {
+async function simpanRencana(ctx: Konteks, jenis: 'ubah_presensi' | 'mulai_sesi' | 'setujui_bimbingan', data: DataUbah | DataMulai | DataSetuju, ringkasan: string) {
   // Satu rencana aktif per dosen per grup: rencana lama yang belum dikonfirmasi diganti.
   await db()
     .update(botAksi)
@@ -171,6 +180,59 @@ export async function rencanaMulaiSesi(f: { kelas?: string; pertemuanKe?: number
   return simpanRencana(ctx, 'mulai_sesi', { kelasId: k.id, pertemuanId: p.id, kelas: `${k.mataKuliah} ${k.namaKelas}`, pertemuanKe: p.ke }, ringkasan);
 }
 
+const LABEL_JENIS: Record<JenisKarya, string> = { karya_terapan: 'Karya Terapan', skripsi: 'Skripsi' };
+
+/** Mahasiswa bimbingan karya akhir (karya terapan dan/atau skripsi) yang cocok dengan nama atau NIM. */
+export async function cariMahasiswaKaryaAkhir(cari: string, jenis?: JenisKarya) {
+  const daftar = (
+    await Promise.all(
+      (jenis ? [jenis] : (['karya_terapan', 'skripsi'] as JenisKarya[])).map(async (j) => (await daftarKaryaAkhir(j)).map((k) => ({ ...k, jenis: j }))),
+    )
+  ).flat();
+  return { semua: daftar, cocok: cocokPeserta(cari, daftar) };
+}
+
+/**
+ * Tool: rencana menyetujui bimbingan karya akhir satu mahasiswa di SISKA. Bawaan semua bimbingan yang belum
+ * disetujui; bila `bimbinganKe` diisi, hanya nomor itu.
+ */
+export async function rencanaSetujuiBimbingan(f: { mahasiswa: string; jenis?: JenisKarya; bimbinganKe?: number[] }, ctx: Konteks) {
+  const tolak = tolakBila(ctx);
+  if (tolak) return tolak;
+  const { cocok } = await cariMahasiswaKaryaAkhir(f.mahasiswa, f.jenis);
+  if (cocok.length !== 1) {
+    return {
+      hasil: 'perlu_perbaikan',
+      pesan: cocok.length === 0 ? `Tidak ada mahasiswa bimbingan aktif yang cocok dengan "${f.mahasiswa}".` : `Ada ${cocok.length} mahasiswa yang cocok; minta nama lengkap atau NIM.`,
+      kandidat: cocok.slice(0, 10).map((k: KaryaAkhir & { jenis: JenisKarya }) => `${k.nama} (${k.nim}, ${LABEL_JENIS[k.jenis]})`),
+    };
+  }
+  const k = cocok[0];
+  const belum = await daftarBimbingan(k.jenis, k.id_karya_akhir, 'belum');
+  const dipilih = f.bimbinganKe?.length ? belum.filter((b) => b.bimbingan_ke != null && f.bimbinganKe!.includes(b.bimbingan_ke)) : belum;
+  if (dipilih.length === 0) {
+    return {
+      hasil: 'perlu_perbaikan',
+      pesan: belum.length === 0 ? `Semua bimbingan ${k.nama} di SISKA sudah disetujui.` : `Bimbingan ke-${f.bimbinganKe!.join(', ')} tidak ada di antara yang belum disetujui.`,
+      belumDisetujui: belum.map((b) => `ke-${b.bimbingan_ke}: ${b.tanggal}, ${b.topik.slice(0, 80)}`),
+    };
+  }
+  const ringkasan = [
+    '📝 *Rencana setujui bimbingan di SISKA*',
+    `${k.nama} (${k.nim}) · ${LABEL_JENIS[k.jenis]}`,
+    ...dipilih.map((b) => `- Bimbingan ke-${b.bimbingan_ke ?? '?'}, ${b.tanggal}: ${b.topik.slice(0, 100) || '(tanpa topik)'}`),
+    'Persetujuan di SISKA tidak bisa dibatalkan dari bot.',
+  ].join('\n');
+  const data: DataSetuju = {
+    jenis: k.jenis,
+    idKaryaAkhir: k.id_karya_akhir,
+    nim: k.nim,
+    nama: k.nama,
+    bimbingan: dipilih.map((b) => ({ id: b.id_bimbingan, ke: b.bimbingan_ke, tanggal: b.tanggal, topik: b.topik.slice(0, 100) })),
+  };
+  return simpanRencana(ctx, 'setujui_bimbingan', data, ringkasan);
+}
+
 /**
  * Balasan "ya" / "batal" dari dosen untuk rencana yang menunggu. Mengembalikan teks balasan, atau null bila
  * pesan bukan konfirmasi (lalu diproses Claude seperti biasa). Dijalankan tanpa Claude.
@@ -220,6 +282,17 @@ export async function tanganiKonfirmasi(teks: string, ctx: Konteks): Promise<str
         ...u.ditolak.map((x) => `⚠️ ${x.nim}: ${x.alasan}`),
         `Rekap sekarang: ${n('H')} Hadir, ${n('S')} Sakit, ${n('I')} Izin, ${n('A')} Alfa, ${n(null)} belum diisi.`,
       ].join('\n');
+    } else if (r.jenis === 'setujui_bimbingan') {
+      const d = r.data as DataSetuju;
+      const h = await setujuiBimbingan(d.jenis, d.idKaryaAkhir, d.bimbingan.map((b) => b.id));
+      const ke = (ids: number[]) => ids.map((id) => `ke-${d.bimbingan.find((b) => b.id === id)?.ke ?? id}`).join(', ');
+      hasil = [
+        h.disetujui.length ? `✅ Disetujui di SISKA: ${d.nama}, bimbingan ${ke(h.disetujui)}.` : `Tidak ada bimbingan ${d.nama} yang berubah.`,
+        h.sudah_disetujui_sebelumnya.length ? `Sudah disetujui sebelumnya: ${ke(h.sudah_disetujui_sebelumnya)}.` : null,
+        h.gagal.length ? `⚠️ Belum berubah di SISKA: ${ke(h.gagal)}. Cek di web SISKA.` : null,
+      ]
+        .filter(Boolean)
+        .join('\n');
     } else {
       const d = r.data as DataMulai;
       await mulaiSesi(d.pertemuanId);

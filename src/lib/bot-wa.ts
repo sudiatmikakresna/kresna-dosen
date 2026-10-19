@@ -4,8 +4,8 @@ import { and, asc, desc, eq, gt, inArray, sql } from 'drizzle-orm';
 import { botDokumen, botTanya, db, pengaturan, waGrup } from '@/db';
 import { progresSemuaMahasiswa, riwayatBimbingan } from './bot-riwayat';
 import { aktivitasKelasBengkel, bengkelSiap, poinKelasBengkel, statusMahasiswaBengkel } from './bengkel';
-import { rencanaMulaiSesi, rencanaUbahPresensi, tanganiKonfirmasi, type Konteks } from './bot-aksi';
-import { jadwalSiska, presensiSiska, rekapKetidakhadiranSiska, siskaSiap } from './bot-siska';
+import { rencanaMulaiSesi, rencanaSetujuiBimbingan, rencanaUbahPresensi, tanganiKonfirmasi, type Konteks } from './bot-aksi';
+import { bimbinganBelumDisetujuiSiska, jadwalSiska, presensiSiska, rekapKetidakhadiranSiska, siskaSiap } from './bot-siska';
 import { dataKelasSpk, spkSiap } from './spk';
 import { pilihPotongan } from './bot-cari';
 import { biayaUsd, MODEL_BOT_BAWAAN, modelValid, type ModelBot } from './harga-claude';
@@ -34,7 +34,7 @@ export const SUMBER_BOT = [
   { id: 'bimbingan', label: 'Progres bimbingan skripsi' },
   { id: 'spk', label: 'Kelas SPK (idea-spk)' },
   { id: 'bengkel', label: 'Bengkel Pemrograman Mobile' },
-  { id: 'siska', label: 'SISKA (jadwal, presensi, ubah presensi)' },
+  { id: 'siska', label: 'SISKA (jadwal, presensi, bimbingan; ubah presensi & setujui bimbingan)' },
 ] as const;
 export type SumberBot = (typeof SUMBER_BOT)[number]['id'];
 const SEMUA_SUMBER = SUMBER_BOT.map((x) => x.id);
@@ -281,8 +281,8 @@ Sumber jawabanmu HANYA:
 2. Data riwayat bimbingan skripsi dari tool riwayat_bimbingan (satu mahasiswa, cari berdasarkan nama) dan progres_semua_mahasiswa (rekap semua mahasiswa). Pakai tool ini untuk pertanyaan tentang progres, status bab, versi, tanggal unggah atau tanggapan, jumlah catatan revisi, dan progres perbaikan (syarat disetujui: lebih dari 70% catatan dari 2 bimbingan terakhir diperbaiki di setiap sub bab).
 3. Bila tool data_kelas_spk tersedia: data mata kuliah Sistem Pendukung Keputusan (SPK) dari idea-spk.vercel.app, yaitu ide studi kasus per NIM, 3 algoritma pilihan (SAW, WP, TOPSIS, AHP), dan link tugas Google Docs. Data ini hanya memuat NIM, bukan nama; bila penanya menanyakan miliknya sendiri, minta NIM-nya.
 4. Bila tool Bengkel tersedia (poin_kelas_bengkel, status_mahasiswa_bengkel, aktivitas_kelas_bengkel): data mata kuliah Pemrograman Mobile dari Bengkel Flutter (kresna.blog), yaitu poin harian per kelas, soal yang lulus, kiriman terakhir, dan push yang ditolak. Bila pertanyaan tidak menyebut kelas, kosongkan parameter kelas: tool memakai kelas milik grup ini. Bila tool menjawab perlu_kelas, minta penanya menyebut kelasnya dari daftar pilihan. Sebutkan waktu data (dataPer) di akhir jawaban, dan sampaikan peringatan bila ada.
-5. Bila tool SISKA tersedia (jadwal_mengajar_siska, presensi_siska, rekap_ketidakhadiran_siska): data akademik resmi dari SISKA untuk semua kelas dosen, termasuk SPK dan Pemrograman Mobile, yaitu jadwal mengajar, presensi satu pertemuan, dan rekap Alfa/Izin. Kosongkan parameter kelas bila pertanyaan tentang kelas grup ini.
-6. Absensi: bila dosen meminta mengubah presensi (mis. "absen hadir Rifqi", "Budi izin, Ani sakit") pakai rencana_ubah_presensi_siska; bila meminta memulai sesi/kelas pakai rencana_mulai_sesi_siska. Tool ini HANYA membuat rencana; sistem otomatis mengirim ringkasan dan meminta dosen membalas "ya". Jangan pernah mengatakan presensi sudah tersimpan. Bila tool menjawab perlu_perbaikan, sampaikan masalahnya dan minta nama lengkap atau NIM. Menutup presensi (mengisi Alfa massal) dan mengakhiri sesi tidak bisa lewat bot; arahkan ke SISKA.
+5. Bila tool SISKA tersedia (jadwal_mengajar_siska, presensi_siska, rekap_ketidakhadiran_siska, bimbingan_siska): data akademik resmi dari SISKA untuk semua kelas dosen, termasuk SPK dan Pemrograman Mobile, yaitu jadwal mengajar, presensi satu pertemuan, rekap Alfa/Izin, dan bimbingan skripsi/karya terapan yang belum disetujui di SISKA. Kosongkan parameter kelas bila pertanyaan tentang kelas grup ini. Bimbingan di SISKA berbeda dari progres bimbingan di kresna-dosen (riwayat_bimbingan): SISKA mencatat pertemuan bimbingan yang perlu disetujui dosen.
+6. Absensi: bila dosen meminta mengubah presensi (mis. "absen hadir Rifqi", "Budi izin, Ani sakit") pakai rencana_ubah_presensi_siska; bila meminta memulai sesi/kelas pakai rencana_mulai_sesi_siska. Tool ini HANYA membuat rencana; sistem otomatis mengirim ringkasan dan meminta dosen membalas "ya". Jangan pernah mengatakan presensi sudah tersimpan. Bila tool menjawab perlu_perbaikan, sampaikan masalahnya dan minta nama lengkap atau NIM. Bila dosen meminta menyetujui/approve bimbingan di SISKA (mis. "setujui bimbingan Nauval", "approve bimbingan ke-2 dan ke-3 Budi") pakai rencana_setujui_bimbingan_siska; alurnya sama (rencana lalu "ya"), jangan pernah mengatakan bimbingan sudah disetujui. Menutup presensi (mengisi Alfa massal) dan mengakhiri sesi tidak bisa lewat bot; arahkan ke SISKA.
 
 Aturan:
 - Jangan memakai pengetahuan umum, jangan menebak, dan jangan menambah informasi yang tidak ada di dokumen atau data tool.
@@ -401,6 +401,18 @@ const TOOLS_SISKA: Anthropic.Beta.BetaTool[] = [
       },
     },
   },
+  {
+    name: 'bimbingan_siska',
+    description:
+      'Bimbingan skripsi/karya terapan di SISKA yang belum disetujui dosen. Tanpa mahasiswa: rekap semua mahasiswa bimbingan aktif dan jumlah bimbingan yang menunggu persetujuan. Dengan mahasiswa: daftar bimbingan yang belum disetujui (ke-, tanggal, fase, topik).',
+    input_schema: {
+      type: 'object',
+      properties: {
+        mahasiswa: { type: 'string', description: 'Opsional, nama (boleh sebagian) atau NIM.' },
+        jenis: { type: 'string', enum: ['karya_terapan', 'skripsi'], description: 'Opsional; kosongkan untuk keduanya.' },
+      },
+    },
+  },
 ];
 
 const TOOLS_AKSI: Anthropic.Beta.BetaTool[] = [
@@ -440,6 +452,20 @@ const TOOLS_AKSI: Anthropic.Beta.BetaTool[] = [
         kelas: { type: 'string', description: 'Opsional. Kosongkan untuk kelas grup ini.' },
         pertemuan_ke: { type: 'integer', description: 'Opsional, nomor pertemuan.' },
       },
+    },
+  },
+  {
+    name: 'rencana_setujui_bimbingan_siska',
+    description:
+      'Membuat RENCANA menyetujui bimbingan skripsi/karya terapan satu mahasiswa di SISKA: semua yang belum disetujui, atau hanya nomor bimbingan_ke yang disebut dosen. Belum mengubah apa pun; dosen harus membalas "ya".',
+    input_schema: {
+      type: 'object',
+      properties: {
+        mahasiswa: { type: 'string', description: 'Nama (boleh sebagian) atau NIM persis seperti disebut dosen.' },
+        jenis: { type: 'string', enum: ['karya_terapan', 'skripsi'], description: 'Opsional; kosongkan untuk mencari di keduanya.' },
+        bimbingan_ke: { type: 'array', items: { type: 'integer' }, description: 'Opsional, mis. [2, 3]. Kosongkan untuk semua yang belum disetujui.' },
+      },
+      required: ['mahasiswa'],
     },
   },
 ];
@@ -514,6 +540,12 @@ async function jalankanTool(nama: string, input: unknown, ctx: Konteks, diizinka
     if (nama === 'presensi_siska') return presensiSiska({ kelas: teks(f.kelas), pertemuanKe: angka(f.pertemuan_ke) }, chatId);
     if (nama === 'rekap_ketidakhadiran_siska') return rekapKetidakhadiranSiska({ kelas: teks(f.kelas), minimal: angka(f.minimal) }, chatId);
     if (nama === 'rencana_mulai_sesi_siska') return rencanaMulaiSesi({ kelas: teks(f.kelas), pertemuanKe: angka(f.pertemuan_ke) }, ctx);
+    const jenisKarya = f.jenis === 'skripsi' || f.jenis === 'karya_terapan' ? f.jenis : undefined;
+    if (nama === 'bimbingan_siska') return bimbinganBelumDisetujuiSiska({ mahasiswa: teks(f.mahasiswa), jenis: jenisKarya });
+    if (nama === 'rencana_setujui_bimbingan_siska') {
+      const ke = Array.isArray(f.bimbingan_ke) ? f.bimbingan_ke.filter((x): x is number => typeof x === 'number' && Number.isInteger(x)) : undefined;
+      return rencanaSetujuiBimbingan({ mahasiswa: teks(f.mahasiswa) ?? '', jenis: jenisKarya, bimbinganKe: ke }, ctx);
+    }
     if (nama === 'rencana_ubah_presensi_siska') {
       const daftar = Array.isArray(f.perubahan) ? (f.perubahan as Record<string, unknown>[]) : [];
       return rencanaUbahPresensi(

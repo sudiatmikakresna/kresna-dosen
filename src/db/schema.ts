@@ -321,7 +321,7 @@ export const botAksi = pgTable(
     id: serial('id').primaryKey(),
     chatId: text('chat_id').notNull(),
     pengirimId: text('pengirim_id').notNull(),
-    jenis: text('jenis', { enum: ['ubah_presensi', 'mulai_sesi'] }).notNull(),
+    jenis: text('jenis', { enum: ['ubah_presensi', 'mulai_sesi', 'setujui_bimbingan'] }).notNull(),
     data: jsonb('data').notNull(),
     ringkasan: text('ringkasan').notNull(),
     status: text('status', { enum: ['menunggu', 'dijalankan', 'dibatalkan', 'gagal'] }).notNull().default('menunggu'),

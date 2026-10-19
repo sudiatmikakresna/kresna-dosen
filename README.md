@@ -252,6 +252,10 @@ pesan grup ──webhook WAHA (HMAC)──► bot di-mention / pesan bot dibalas
   Claude. Nama yang ambigu atau tidak ditemukan membuat rencana tidak dibuat. Hanya aktif bila daftar nomor yang
   diizinkan diisi, dan konfirmasi harus dari nomor yang sama. Menutup presensi (Alfa massal) dan mengakhiri sesi
   sengaja tidak tersedia lewat bot.
+- Bimbingan skripsi/karya terapan di SISKA lewat bot: `bimbingan_siska` (baca: rekap mahasiswa yang punya bimbingan
+  belum disetujui, atau daftar bimbingan satu mahasiswa) dan `rencana_setujui_bimbingan_siska` (aksi). Alurnya sama
+  dengan absensi: bot mengirim rencana (mahasiswa, bimbingan ke-, tanggal, topik), lalu dosen membalas "ya" dalam
+  10 menit; yang dijalankan persis isi rencana (bulk-approve SISKA), sekali, dan hasilnya dibaca ulang dari SISKA.
 - Siapa yang boleh bertanya diatur di halaman bot (**Siapa yang boleh bertanya**, kunci `wa_bot_nomor_izin` di tabel
   `pengaturan`; awalnya hanya 081934374633). Pengirim dicocokkan lewat nomor maupun LID-nya (diambil dari WAHA).
   Mention dari nomor lain diabaikan tanpa balasan dan tercatat "Dibatasi". Kosongkan daftar untuk mengizinkan semua.
