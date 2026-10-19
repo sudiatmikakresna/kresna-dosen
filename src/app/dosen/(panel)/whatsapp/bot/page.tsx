@@ -49,7 +49,7 @@ export default async function BotPage({ searchParams }: { searchParams: Promise<
         Di grup yang bot-nya aktif, anggota bisa menyebut (mention) nomor WhatsApp ini atau membalas pesan bot untuk bertanya. Claude ({MODEL_BOT_PILIHAN[setelan.model].nama})
         menjawab <strong>hanya berdasarkan dokumen aktif di bawah dan data riwayat bimbingan</strong> (progres semua mahasiswa: bab, versi,
         tanggal, keputusan, jumlah catatan, progres perbaikan; tanpa isi catatan dan NIM), lalu menyebut sumbernya. Pertanyaan di luar
-        itu dijawab dengan penolakan sopan. Maksimal 5 pertanyaan per orang per 10 menit dan 100 per grup per hari.
+        itu dijawab dengan penolakan sopan. Maksimal 5 pertanyaan per orang per 10 menit (30 bila daftar nomor yang diizinkan diisi) dan 100 per grup per hari.
       </p>
       {ok === 'dokumen' && <div className="alert alert-success">Dokumen ditambahkan dan langsung dipakai bot.</div>}
       {ok === 'nomor' && <div className="alert alert-success">Daftar nomor yang boleh memakai bot disimpan.</div>}

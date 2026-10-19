@@ -75,59 +75,86 @@ async function perluKelas(cocok: Kelas[]) {
 const jamValid =(v: unknown) => (typeof v === 'string' && /^([01]\d|2[0-3])[:.][0-5]\d$/.test(v) ? v.replace('.', ':') : '22:00');
 const tanggalValid = (v: unknown) => (typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : null);
 
-/** Poin harian per mahasiswa untuk satu kelas. */
-export async function poinKelasBengkel(f: { kelas?: string; tanggal?: string; batasJam?: string }, chatId?: string) {
+/**
+ * Poin per mahasiswa untuk satu kelas, satu tanggal atau rentang tanggal. Dalam rentang, setiap soal dihitung
+ * SEKALI, pada hari pertama soal itu lulus, dan hanya bila lulus sebelum jam batas pada hari itu.
+ */
+export async function poinKelasBengkel(
+  f: { kelas?: string; tanggal?: string; sampaiTanggal?: string; batasJam?: string },
+  chatId?: string,
+) {
   const kelas = await cariKelas(f.kelas, chatId);
   if (kelas.length !== 1) return perluKelas(kelas);
   const k = kelas[0];
   const batas = jamValid(f.batasJam);
   const [{ hari_ini }] = await q<{ hari_ini: string }>(`SELECT (now() AT TIME ZONE '${ZONA}')::date::text AS hari_ini`);
-  const tanggal = tanggalValid(f.tanggal) ?? hari_ini;
-  const baris = await q<{ nim: string; nama: string; punya_akun: boolean; poin: number; d1: number; d2: number; d3: number; terakhir: string | null }>(
-    `WITH anggota AS (
-       SELECT a.nim, a.nama,
-              (SELECT array_agg(m.id) FROM bengkel.mahasiswa m WHERE m.npm = a.nim OR upper(m.nama) = upper(a.nama)) AS ids
-         FROM bengkel.kelas_anggota a WHERE a.kode = $1
-     ), lulus AS (
-       SELECT DISTINCT a.nim, s.soal_id
-         FROM anggota a JOIN bengkel.submission s ON s.mahasiswa_id = ANY (a.ids)
-        WHERE s.lulus
-          AND (s.created_at AT TIME ZONE '${ZONA}')::date = $2::date
-          AND (s.created_at AT TIME ZONE '${ZONA}')::time < $3::time
-     )
-     SELECT a.nim, a.nama, a.ids IS NOT NULL AS punya_akun,
-            COALESCE(sum(CASE WHEN l.soal_id LIKE 'D3-%' THEN 5 WHEN l.soal_id ~ '^D[12]-' THEN 2 ELSE 0 END), 0)::int AS poin,
-            count(l.soal_id) FILTER (WHERE l.soal_id LIKE 'D1-%')::int AS d1,
-            count(l.soal_id) FILTER (WHERE l.soal_id LIKE 'D2-%')::int AS d2,
-            count(l.soal_id) FILTER (WHERE l.soal_id LIKE 'D3-%')::int AS d3,
-            (SELECT to_char(max(s.created_at AT TIME ZONE '${ZONA}'), 'HH24:MI') FROM bengkel.submission s
-              WHERE s.mahasiswa_id = ANY (a.ids) AND (s.created_at AT TIME ZONE '${ZONA}')::date = $2::date) AS terakhir
-       FROM anggota a LEFT JOIN lulus l ON l.nim = a.nim
-      GROUP BY a.nim, a.nama, a.ids
-      ORDER BY poin DESC, a.nama`,
-    [k.kode, tanggal, batas],
-  );
-  const memenuhi = baris.filter((b) => b.poin >= TARGET_POIN);
+  const dari = tanggalValid(f.tanggal) ?? hari_ini;
+  const sampai = tanggalValid(f.sampaiTanggal) ?? dari;
+  if (sampai < dari) return { hasil: 'error', pesan: 'sampai_tanggal tidak boleh sebelum tanggal.' };
+  if ((Date.parse(sampai) - Date.parse(dari)) / 86_400_000 > 31) return { hasil: 'error', pesan: 'Rentang maksimal 31 hari.' };
+
+  const [anggota, lulus] = await Promise.all([
+    q<{ nim: string; nama: string; punya_akun: boolean; terakhir: string | null }>(
+      `WITH anggota AS (
+         SELECT a.nim, a.nama,
+                (SELECT array_agg(m.id) FROM bengkel.mahasiswa m WHERE m.npm = a.nim OR upper(m.nama) = upper(a.nama)) AS ids
+           FROM bengkel.kelas_anggota a WHERE a.kode = $1
+       )
+       SELECT a.nim, a.nama, a.ids IS NOT NULL AS punya_akun,
+              (SELECT to_char(max(s.created_at AT TIME ZONE '${ZONA}'), 'DD Mon HH24:MI') FROM bengkel.submission s
+                WHERE s.mahasiswa_id = ANY (a.ids) AND (s.created_at AT TIME ZONE '${ZONA}')::date BETWEEN $2::date AND $3::date) AS terakhir
+         FROM anggota a ORDER BY a.nama`,
+      [k.kode, dari, sampai],
+    ),
+    q<{ nim: string; soal_id: string; hari: string }>(
+      `SELECT a.nim, s.soal_id, min((s.created_at AT TIME ZONE '${ZONA}')::date)::text AS hari
+         FROM bengkel.kelas_anggota a
+         JOIN bengkel.mahasiswa m ON m.npm = a.nim OR upper(m.nama) = upper(a.nama)
+         JOIN bengkel.submission s ON s.mahasiswa_id = m.id
+        WHERE a.kode = $1 AND s.lulus AND s.soal_id ~ '^D[123]-'
+          AND (s.created_at AT TIME ZONE '${ZONA}')::date BETWEEN $2::date AND $3::date
+          AND (s.created_at AT TIME ZONE '${ZONA}')::time < $4::time
+        GROUP BY a.nim, s.soal_id`,
+      [k.kode, dari, sampai, batas],
+    ),
+  ]);
+
+  const nilai = (soal: string) => (soal.startsWith('D3-') ? 5 : 2);
+  const rentang = dari !== sampai;
+  const baris = anggota
+    .map((a) => {
+      const milik = lulus.filter((l) => l.nim === a.nim);
+      const perHari: Record<string, number> = {};
+      for (const l of milik) perHari[l.hari] = (perHari[l.hari] ?? 0) + nilai(l.soal_id);
+      const hitung = (m: string) => milik.filter((l) => l.soal_id.startsWith(m)).length;
+      return {
+        nim: a.nim,
+        nama: a.nama,
+        poin: milik.reduce((n, l) => n + nilai(l.soal_id), 0),
+        soalLulus: { D1: hitung('D1-'), D2: hitung('D2-'), D3: hitung('D3-') },
+        ...(rentang ? { poinPerHari: perHari } : {}),
+        kirimanTerakhir: a.terakhir,
+        ...(a.punya_akun ? {} : { catatan: 'Belum punya akun Bengkel.' }),
+      };
+    })
+    .sort((x, y) => y.poin - x.poin || x.nama.localeCompare(y.nama));
+
   return {
     sumber: 'Bengkel Flutter (kresna.blog)',
     ...(await waktuData()),
     kelas: `${k.nama} (${k.hari}, kode ${k.kode})`,
-    tanggal,
-    aturan: `D1/D2 = 2 poin, D3 = 5 poin per soal berbeda yang lulus pada tanggal itu sebelum pukul ${batas} WITA. Target ${TARGET_POIN} poin.`,
+    periode: rentang ? `${dari} s.d. ${sampai}` : dari,
+    aturan:
+      `D1/D2 = 2 poin, D3 = 5 poin per soal berbeda yang lulus sebelum pukul ${batas} WITA pada harinya.` +
+      (rentang ? ' Dalam rentang, setiap soal dihitung sekali, pada hari pertama lulus.' : '') +
+      ` Target ${TARGET_POIN} poin.`,
     ringkasan: {
       anggota: baris.length,
-      memenuhiTarget: memenuhi.length,
+      memenuhiTarget: baris.filter((b) => b.poin >= TARGET_POIN).length,
       sudahMulaiBelumCukup: baris.filter((b) => b.poin > 0 && b.poin < TARGET_POIN).length,
       belumAdaPoin: baris.filter((b) => b.poin === 0).length,
     },
-    mahasiswa: baris.map((b) => ({
-      nim: b.nim,
-      nama: b.nama,
-      poin: b.poin,
-      soalLulus: { D1: b.d1, D2: b.d2, D3: b.d3 },
-      kirimanTerakhirHariItu: b.terakhir,
-      ...(b.punya_akun ? {} : { catatan: 'Belum punya akun Bengkel.' }),
-    })),
+    mahasiswa: baris,
   };
 }
 

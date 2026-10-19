@@ -153,7 +153,10 @@ async function bacaLampiran(chatId: string, pesanId: string, payload: unknown, r
   return { tolak: 'Maaf, saya baru bisa membaca lampiran berupa gambar atau PDF.' };
 }
 export const BATAS_KARAKTER_DOKUMEN = 1_500_000; // ±375 ribu token, masih jauh di bawah konteks 1 juta token
-const BATAS_PER_ORANG = 5; // pertanyaan per 10 menit
+const BATAS_PER_ORANG = 5; // pertanyaan per 10 menit, bila semua anggota grup boleh bertanya
+// Bila hanya nomor dosen yang diizinkan, batasnya longgar (termasuk balasan "ya" untuk absensi); hanya penahan
+// bila ada yang berulang tanpa henti.
+const BATAS_PER_ORANG_IZIN = 30;
 const BATAS_PER_GRUP = 100; // pertanyaan per hari
 const PENANDA_LUAR = '[DI_LUAR_DOKUMEN]';
 const JAWAB_LUAR =
@@ -333,12 +336,13 @@ const TOOLS_BENGKEL: Anthropic.Beta.BetaTool[] = [
   {
     name: 'poin_kelas_bengkel',
     description:
-      'Poin harian Bengkel per mahasiswa untuk satu kelas Pemrograman Mobile: poin, jumlah soal D1/D2/D3 yang lulus, jam kiriman terakhir, dan ringkasan siapa yang memenuhi target 10 poin. Pakai untuk "siapa yang belum 10 poin", "rekap poin hari ini/kemarin".',
+      'Poin Bengkel per mahasiswa untuk satu kelas Pemrograman Mobile pada satu tanggal atau rentang tanggal: poin (dan poin per hari untuk rentang), jumlah soal D1/D2/D3 yang lulus, kiriman terakhir, dan ringkasan siapa yang memenuhi target 10 poin. Pakai untuk "siapa yang belum 10 poin", "rekap poin hari ini/kemarin", "dari Kamis sampai Minggu".',
     input_schema: {
       type: 'object',
       properties: {
         kelas: { type: 'string', description: 'Opsional. Kode SISKA (mis. "4702"), hari ("kamis", "jumat pagi"), atau nama ("TI PAGI1"). Kosongkan untuk kelas milik grup ini.' },
-        tanggal: { type: 'string', description: 'Opsional, format YYYY-MM-DD. Kosong = hari ini (WITA). Hitung sendiri untuk "kemarin".' },
+        tanggal: { type: 'string', description: 'Opsional, format YYYY-MM-DD. Kosong = hari ini (WITA). Hitung sendiri untuk "kemarin". Untuk rentang, ini tanggal awal.' },
+        sampai_tanggal: { type: 'string', description: 'Opsional, YYYY-MM-DD, tanggal akhir rentang (mis. "dari Kamis sampai Minggu"). Setiap soal dihitung sekali.' },
         batas_jam: { type: 'string', description: 'Opsional, HH:MM. Bawaan 22:00.' },
       },
     },
@@ -527,7 +531,8 @@ async function jalankanTool(nama: string, input: unknown, ctx: Konteks, diizinka
   if (bengkelSiap()) {
     const f = (input ?? {}) as Record<string, unknown>;
     const teks = (v: unknown) => (typeof v === 'string' && v.trim() ? v.trim().slice(0, 60) : undefined);
-    if (nama === 'poin_kelas_bengkel') return poinKelasBengkel({ kelas: teks(f.kelas), tanggal: teks(f.tanggal), batasJam: teks(f.batas_jam) }, chatId);
+    if (nama === 'poin_kelas_bengkel')
+      return poinKelasBengkel({ kelas: teks(f.kelas), tanggal: teks(f.tanggal), sampaiTanggal: teks(f.sampai_tanggal), batasJam: teks(f.batas_jam) }, chatId);
     if (nama === 'status_mahasiswa_bengkel') return statusMahasiswaBengkel(teks(f.cari) ?? '');
     if (nama === 'aktivitas_kelas_bengkel') return aktivitasKelasBengkel({ kelas: teks(f.kelas), diamHari: typeof f.diam_hari === 'number' ? f.diam_hari : undefined }, chatId);
   }
@@ -747,7 +752,7 @@ export async function tanganiPesanBot(payload: unknown, me: unknown) {
         .from(botTanya)
         .where(and(eq(botTanya.chatId, chatId), gt(botTanya.createdAt, sql`now() - interval '1 day'`), dihitung)),
     ]);
-    if (orang.n > BATAS_PER_ORANG || grup.n > BATAS_PER_GRUP) {
+    if (orang.n > (ctx.bolehMengubah ? BATAS_PER_ORANG_IZIN : BATAS_PER_ORANG) || grup.n > BATAS_PER_GRUP) {
       const [sebelumnya] = await db()
         .select({ status: botTanya.status })
         .from(botTanya)

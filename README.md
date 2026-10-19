@@ -255,7 +255,8 @@ pesan grup ──webhook WAHA (HMAC)──► bot di-mention / pesan bot dibalas
   penanya yang sama di grup yang sama dalam 24 jam terakhir (dibaca dari `bot_tanya`), sehingga pertanyaan lanjutan
   seperti "kalau Bab 4?" atau "yang tadi" dipahami. Bila penanya me-reply sebuah pesan, teks pesan itu ikut dikirim.
   Penanya bisa mengirim "mulai baru" untuk mengosongkan konteks. Log bot mencatat berapa tanya-jawab yang dipakai.
-- Batas: 5 pertanyaan per orang per 10 menit dan 100 per grup per hari. Webhook ulangan untuk pesan yang sama tidak
+- Batas: 5 pertanyaan per orang per 10 menit (30 bila daftar nomor yang diizinkan diisi, termasuk balasan "ya") dan
+  100 per grup per hari. Webhook ulangan untuk pesan yang sama tidak
   menghasilkan jawaban ganda.
 - **Sumber per grup** (`wa_grup.bot_sumber`): di halaman bot, centang sumber yang boleh dipakai tiap grup (dokumen,
   bimbingan, SPK, Bengkel, SISKA). Tool di luar sumber grup tidak ditawarkan ke Claude dan ditolak bila tetap dipanggil.
