@@ -252,7 +252,7 @@ pesan grup ──webhook WAHA (HMAC)──► bot di-mention / pesan bot dibalas
   `pengaturan`; awalnya hanya 081934374633). Pengirim dicocokkan lewat nomor maupun LID-nya (diambil dari WAHA).
   Mention dari nomor lain diabaikan tanpa balasan dan tercatat "Dibatasi". Kosongkan daftar untuk mengizinkan semua.
 - Memory percakapan (short-term, sliding window): setiap pertanyaan membawa maksimal 6 tanya-jawab terakhir dari
-  penanya yang sama di grup yang sama dalam 60 menit terakhir (dibaca dari `bot_tanya`), sehingga pertanyaan lanjutan
+  penanya yang sama di grup yang sama dalam 24 jam terakhir (dibaca dari `bot_tanya`), sehingga pertanyaan lanjutan
   seperti "kalau Bab 4?" atau "yang tadi" dipahami. Bila penanya me-reply sebuah pesan, teks pesan itu ikut dikirim.
   Penanya bisa mengirim "mulai baru" untuk mengosongkan konteks. Log bot mencatat berapa tanya-jawab yang dipakai.
 - Batas: 5 pertanyaan per orang per 10 menit dan 100 per grup per hari. Webhook ulangan untuk pesan yang sama tidak
