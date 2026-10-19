@@ -443,9 +443,9 @@ const TOOLS_AKSI: Anthropic.Beta.BetaTool[] = [
 const MAKS_PUTARAN = 4;
 
 // Memory percakapan (short-term, sliding window): tanya-jawab terakhir dari penanya yang sama di grup yang sama.
-const MAKS_RIWAYAT = 50;
-// Penahan biaya: riwayat dipotong dari yang paling lama bila total teksnya melebihi batas ini (±30 ribu token).
-const BATAS_KARAKTER_RIWAYAT = 120_000;
+const MAKS_RIWAYAT = 20;
+// Penahan biaya: riwayat dipotong dari yang paling lama bila total teksnya melebihi batas ini (±15 ribu token).
+const BATAS_KARAKTER_RIWAYAT = 60_000;
 const JENDELA_RIWAYAT_MENIT = 24 * 60; // 24 jam
 const PERINTAH_RESET = /^(mulai baru|reset|lupakan( percakapan)?|topik baru)[.!]?$/i;
 const ALASAN_RESET = 'Percakapan dimulai ulang.';
