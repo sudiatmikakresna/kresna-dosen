@@ -6,6 +6,7 @@ import { siskaSiap } from '@/lib/siska/client';
 import { getKelas, jadwalTanggal, listKelas, mulaiSesi } from '@/lib/siska/kelas';
 import { getPresensi, tutupPresensi, ubahPresensi } from '@/lib/siska/presensi';
 import { daftarBimbingan, daftarKaryaAkhir, setujuiBimbingan } from '@/lib/siska/bimbingan';
+import { daftarPersetujuanSidang, detailPersetujuanSidang, setujuiSidang } from '@/lib/siska/sidang';
 
 export const maxDuration = 60;
 
@@ -86,6 +87,57 @@ const handler = createMcpHandler(
         annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: true },
       },
       aman(async ({ jenis, id_karya_akhir, id_bimbingan }) => json(await setujuiBimbingan(jenis, id_karya_akhir, id_bimbingan))),
+    );
+
+    server.registerTool(
+      'daftar_persetujuan_sidang',
+      {
+        title: 'Daftar persetujuan sidang',
+        description:
+          'Checklist persetujuan sidang (menu Tugas Akhir → Persetujuan Sidang) untuk mahasiswa bimbingan dosen di SISKA: ' +
+          'id_karya_akhir_dosen, id_karya_akhir, jenis (Skripsi / Karya Terapan), NIM, nama, fase (Proposal / Skripsi / Karya Terapan), ' +
+          'judul, apakah dosen sudah menyetujui (disetujui_saya), dan apakah semua persetujuan sudah lengkap. Bawaan hanya yang belum ' +
+          'disetujui dosen. Hanya memuat mahasiswa yang terdaftar di kelas bimbingan periode berjalan.',
+        inputSchema: {
+          status: z.enum(['belum', 'disetujui', 'semua']).optional().describe('Bawaan belum (belum disetujui dosen)'),
+          jenis: jenisKarya.optional(),
+          cari: z.string().max(100).optional().describe('Sebagian nama atau NIM'),
+        },
+        annotations: BACA,
+      },
+      aman(async ({ status, jenis, cari }) => json(await daftarPersetujuanSidang({ status, jenis, cari }))),
+    );
+
+    server.registerTool(
+      'detail_persetujuan_sidang',
+      {
+        title: 'Detail persetujuan sidang',
+        description:
+          'Status persetujuan sidang satu mahasiswa: untuk sidang proposal dan sidang akhir, siapa saja (Pembimbing I, Pembimbing II, ' +
+          'Kaprodi) yang sudah menyetujui, tanggalnya, dan apakah perlu persetujuan ulang.',
+        inputSchema: {
+          jenis: jenisKarya,
+          id_karya_akhir: z.number().int().describe('id_karya_akhir dari daftar_persetujuan_sidang'),
+        },
+        annotations: BACA,
+      },
+      aman(async ({ jenis, id_karya_akhir }) => json(await detailPersetujuanSidang(jenis, id_karya_akhir))),
+    );
+
+    server.registerTool(
+      'setujui_sidang',
+      {
+        title: 'Setujui sidang',
+        description:
+          'Menyetujui mahasiswa untuk melaksanakan sidang di SISKA atas nama dosen (sama dengan tombol "Setujui" / "Setujui Terpilih" ' +
+          'di Persetujuan Sidang). Persetujuan hanya bisa dibatalkan oleh admin SISKA, jadi tampilkan dulu mahasiswa yang akan disetujui ' +
+          '(nama, NIM, jenis, fase) dan minta konfirmasi dosen. Hanya id dari checklist dosen ini yang diterima; hasilnya dibaca ulang dari SISKA.',
+        inputSchema: {
+          id_karya_akhir_dosen: z.array(z.number().int()).min(1).max(50).describe('id_karya_akhir_dosen dari daftar_persetujuan_sidang'),
+        },
+        annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: true },
+      },
+      aman(async ({ id_karya_akhir_dosen }) => json(await setujuiSidang(id_karya_akhir_dosen))),
     );
 
     server.registerTool(
