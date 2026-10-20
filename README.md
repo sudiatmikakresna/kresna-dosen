@@ -269,6 +269,16 @@ pesan grup ──webhook WAHA (HMAC)──► bot di-mention / pesan bot dibalas
   disetujui, atau status pembimbing I/II dan kaprodi untuk satu mahasiswa) dan `rencana_setujui_sidang_siska` (aksi:
   mahasiswa yang disebut, atau semua yang menunggu). Alurnya sama: rencana (NIM, nama, jenis, fase) → dosen membalas
   "ya" dalam 10 menit → bulk-approve persetujuan sidang SISKA, dibaca ulang dari SISKA.
+- Kirim revisi dan setujui bab lewat bot (sumber "bimbingan"): `rencana_kirim_revisi` (keputusan Perlu revisi, catatan
+  draf ikut terkirim) dan `rencana_setujui_bab` (keputusan Disetujui, mahasiswa diberi tahu, diumumkan di grup laporan;
+  bila aturan approve belum terpenuhi, rencana memberi peringatan). Saat dijalankan, berkas dicek ulang masih menunggu
+  keputusan, lalu memakai `kirimRevisi` yang sama dengan web (notifikasi Telegram "lewat bot WhatsApp").
+- Rencana gabungan: tool `rencana_*` tidak menyimpan rencana sendiri, tetapi mengembalikan satu langkah. Semua langkah
+  dari satu pesan (mis. "absen hadir Budi, ACC sidang Ken, setujui Bab 2 Ani") disimpan sebagai SATU rencana
+  (`bot_aksi.jenis = 'gabungan'`, maks. 10 langkah, langkah ganda dibuang) dengan ringkasan bernomor dari kode. Satu
+  balasan "ya" menjalankan semua langkah berurutan; langkah yang gagal tidak menghentikan langkah berikutnya dan
+  semua hasil dilaporkan. Claude boleh memakai hingga 8 putaran tool per pertanyaan (`MAKS_PUTARAN`).
+- Halaman Uji bot memakai mode pratinjau: rencana aksi disusun dan ditampilkan, tetapi tidak disimpan atau dijalankan.
 - Siapa yang boleh bertanya diatur di halaman bot (**Siapa yang boleh bertanya**, kunci `wa_bot_nomor_izin` di tabel
   `pengaturan`; awalnya hanya 081934374633). Pengirim dicocokkan lewat nomor maupun LID-nya (diambil dari WAHA).
   Mention dari nomor lain diabaikan tanpa balasan dan tercatat "Dibatasi". Kosongkan daftar untuk mengizinkan semua.
