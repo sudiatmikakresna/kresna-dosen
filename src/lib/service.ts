@@ -188,7 +188,7 @@ export async function kirimRevisi(
   berkasId: number,
   keputusan: 'perlu_revisi' | 'disetujui',
   ringkasan?: string,
-  oleh: 'web' | 'mcp' = 'web',
+  oleh: 'web' | 'mcp' | 'bot' = 'web',
 ) {
   const [b] = await db().select().from(berkas).where(eq(berkas.id, berkasId)).limit(1);
   if (!b) throw new Error(`Berkas ${berkasId} tidak ditemukan.`);
