@@ -1,6 +1,6 @@
 import 'server-only';
 import { headers } from 'next/headers';
-import { and, count, eq, gt, lt } from 'drizzle-orm';
+import { and, count, eq, gt, like, lt } from 'drizzle-orm';
 import { db, loginGagal } from '@/db';
 import { esc, kirimTelegram } from './telegram';
 
@@ -44,4 +44,23 @@ export async function peringatan(html: string) {
   } catch (e) {
     console.error('Peringatan keamanan gagal dikirim', e);
   }
+}
+
+/**
+ * Batas reset password mandiri mahasiswa: maksimal 3 per NIM dan 10 per IP dalam 1 jam. Dicatat di tabel loginGagal
+ * dengan username berawalan "reset:", jadi tidak ikut menghitung kunci login dosen per username.
+ */
+const JENDELA_RESET_MS = 60 * 60_000;
+
+export async function resetTerlaluSering(nim: string, ip: string) {
+  const sejak = new Date(Date.now() - JENDELA_RESET_MS);
+  const [[perNim], [perIp]] = await Promise.all([
+    db().select({ n: count() }).from(loginGagal).where(and(eq(loginGagal.username, `reset:${nim}`.slice(0, 64)), gt(loginGagal.createdAt, sejak))),
+    db().select({ n: count() }).from(loginGagal).where(and(eq(loginGagal.ip, ip), like(loginGagal.username, 'reset:%'), gt(loginGagal.createdAt, sejak))),
+  ]);
+  return Number(perNim?.n ?? 0) >= 3 || Number(perIp?.n ?? 0) >= 10;
+}
+
+export async function catatReset(nim: string, ip: string) {
+  await db().insert(loginGagal).values({ username: `reset:${nim}`.slice(0, 64), ip });
 }

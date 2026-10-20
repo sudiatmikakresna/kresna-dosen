@@ -1,7 +1,7 @@
 'use client';
 
 import { useActionState, useState } from 'react';
-import { daftar, masuk, masukDosen, setupDosen, type FormState } from './actions';
+import { daftar, lupaPassword, masuk, masukDosen, setupDosen, type FormState } from './actions';
 import { SubmitButton } from '@/components/SubmitButton';
 
 function Galat({ state }: { state: FormState }) {
@@ -60,6 +60,23 @@ export function MasukForm() {
       </div>
       <PasswordField id="password" label="Password" autoComplete="current-password" show={show} onToggle={() => setShow(!show)} />
       <SubmitButton className="btn btn-primary w-100 py-2 mt-2">Masuk</SubmitButton>
+    </form>
+  );
+}
+
+export function LupaPasswordForm() {
+  const [state, action] = useActionState(lupaPassword, undefined);
+  const [show, setShow] = useState(false);
+  return (
+    <form action={action}>
+      <Galat state={state} />
+      <div className="mb-3">
+        <label htmlFor="nim" className="form-label">NIM</label>
+        <input id="nim" name="nim" inputMode="numeric" autoComplete="username" className="form-control font-monospace" required />
+      </div>
+      <PasswordField id="password" label="Password baru" autoComplete="new-password" placeholder="Minimal 8 karakter" show={show} onToggle={() => setShow(!show)} />
+      <PasswordField id="password2" label="Konfirmasi password baru" autoComplete="new-password" placeholder="Ketik ulang password" show={show} />
+      <SubmitButton className="btn btn-primary w-100 py-2 mt-2">Simpan password baru</SubmitButton>
     </form>
   );
 }
