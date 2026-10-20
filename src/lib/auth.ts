@@ -42,6 +42,8 @@ export async function penggunaSaatIni(): Promise<User | null> {
     const id = Number(payload.sub);
     if (!id) return null;
     const [user] = await db().select().from(users).where(eq(users.id, id)).limit(1);
+    // Sesi lama tidak berlaku setelah password diatur ulang.
+    if (user?.passwordDiubahAt && (payload.iat ?? 0) < Math.floor(user.passwordDiubahAt.getTime() / 1000)) return null;
     return user ?? null;
   } catch {
     return null;

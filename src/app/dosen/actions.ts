@@ -1,5 +1,6 @@
 'use server';
 
+import bcrypt from 'bcryptjs';
 import { and, eq } from 'drizzle-orm';
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
@@ -401,4 +402,22 @@ export async function cobaTanyaBot(_: CobaState, form: FormData): Promise<CobaSt
   } catch (e) {
     return { pertanyaan, error: (e as Error).message.slice(0, 300) };
   }
+}
+
+export type PasswordState = { ok?: string; error?: string } | undefined;
+
+/** Dosen mengatur ulang password mahasiswa (tanpa email). Sesi login lama mahasiswa itu langsung tidak berlaku. */
+export async function aturPasswordMahasiswa(id: number, _: PasswordState, form: FormData): Promise<PasswordState> {
+  await wajibDosen();
+  const password = String(form.get('password') ?? '');
+  const password2 = String(form.get('password2') ?? '');
+  if (password.length < 8) return { error: 'Password minimal 8 karakter.' };
+  if (password.length > 128) return { error: 'Password terlalu panjang.' };
+  if (password !== password2) return { error: 'Konfirmasi password tidak sama.' };
+  const [m] = await db().select({ id: users.id, nama: users.nama }).from(users).where(and(eq(users.id, id), eq(users.role, 'mahasiswa'))).limit(1);
+  if (!m) return { error: 'Mahasiswa tidak ditemukan.' };
+  await db().update(users).set({ passwordHash: await bcrypt.hash(password, 10), passwordDiubahAt: new Date() }).where(eq(users.id, m.id));
+  const { catatAktivitas } = await import('@/lib/service');
+  await catatAktivitas(m.id, 'Password diatur ulang oleh dosen');
+  return { ok: `Password ${m.nama} sudah diganti. Beri tahu mahasiswanya; sesi login lamanya sudah tidak berlaku.` };
 }

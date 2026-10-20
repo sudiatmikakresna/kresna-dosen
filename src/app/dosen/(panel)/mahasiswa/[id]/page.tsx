@@ -7,6 +7,7 @@ import { aktivitasMahasiswa, berkasMahasiswa, tahapDari } from '@/lib/service';
 import { BerkasTable } from '@/components/BerkasTable';
 import { SubmitButton } from '@/components/SubmitButton';
 import { hapusMahasiswa } from '@/app/dosen/actions';
+import { AturPassword } from './AturPassword';
 import { StatusBadge } from '@/components/StatusBadge';
 
 export const metadata = { title: 'Riwayat Mahasiswa' };
@@ -66,6 +67,17 @@ export default async function RiwayatMahasiswa({ params, searchParams }: { param
               ))}
             </ul>
           </div>
+        </div>
+      </div>
+
+      <div className="card mt-4">
+        <div className="card-header fw-semibold">Atur ulang password</div>
+        <div className="card-body small">
+          <p className="mb-2">
+            Untuk mahasiswa yang lupa password: isi password baru, lalu beri tahu mahasiswanya (mis. lewat WhatsApp pribadi). Mahasiswa masuk
+            dengan NIM <span className="font-monospace">{m.nim}</span> dan password baru ini. Sesi login lamanya langsung tidak berlaku.
+          </p>
+          <AturPassword id={m.id} nama={m.nama} />
         </div>
       </div>
 

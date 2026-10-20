@@ -11,6 +11,7 @@ export default function MasukPage() {
       footer={<>Belum punya akun? <Link href="/daftar">Daftar dengan NIM</Link><br /><Link href="/dosen/masuk" className="d-inline-block mt-2">Masuk sebagai dosen</Link></>}
     >
       <MasukForm />
+      <p className="small text-body-secondary text-center mt-3 mb-0">Lupa password? Hubungi dosen pembimbing untuk mengatur ulang.</p>
     </AuthCard>
   );
 }

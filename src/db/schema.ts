@@ -9,6 +9,8 @@ export const users = pgTable('users', {
   passwordHash: text('password_hash').notNull(),
   judulSkripsi: text('judul_skripsi'),
   driveFolderId: text('drive_folder_id'),
+  /** Diisi saat password diatur ulang dosen; sesi yang dibuat sebelum waktu ini tidak berlaku lagi. */
+  passwordDiubahAt: timestamp('password_diubah_at', { withTimezone: true }),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 });
 
