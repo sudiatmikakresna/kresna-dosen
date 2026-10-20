@@ -1,7 +1,11 @@
 import 'server-only';
-import { and, desc, eq, sql } from 'drizzle-orm';
-import { botAksi, db, users } from '@/db';
-import { catatAktivitas } from './service';
+import { and, desc, eq, inArray, sql } from 'drizzle-orm';
+import { berkas, botAksi, db, revisi, users } from '@/db';
+import { catatAktivitas, kirimRevisi } from './service';
+import { JENIS, labelJenisPendek, terpisah } from './labels';
+import { AMBANG_PERSEN, rekapPerbaikan } from './perbaikan';
+import { teksPengumuman } from './review-ai';
+import { kirimKeGrup } from './wa-laporan';
 import { cariKelas, perluKelas } from './bot-siska';
 import { getKelas, mulaiSesi, type Pertemuan } from './siska/kelas';
 import { getPresensi, ubahPresensi, type Peserta } from './siska/presensi';
@@ -15,7 +19,9 @@ import { daftarPersetujuanSidang, setujuiSidang } from './siska/sidang';
  *   2. Bot mengirim ringkasan rencana (teks dari kode ini, bukan dari Claude). Dosen membalas "ya".
  *      Yang dijalankan persis isi rencana, sekali, sebelum kedaluwarsa. Claude tidak ikut di langkah ini.
  * Persetujuan bimbingan skripsi/karya terapan memakai alur yang sama (rencana_setujui_bimbingan_siska → "ya"),
- * begitu juga persetujuan sidang (rencana_setujui_sidang_siska → "ya").
+ * begitu juga persetujuan sidang, kirim revisi, dan setujui bab di kresna-dosen.
+ * Semua tool rencana dalam SATU pesan dikumpulkan menjadi satu rencana gabungan (simpanRencanaGabungan); satu "ya"
+ * menjalankan semua langkah berurutan.
  * Menutup presensi (Alfa massal) dan mengakhiri sesi sengaja tidak tersedia.
  */
 
@@ -43,11 +49,21 @@ type DataSetuju = {
   bimbingan: { id: number; ke: number | null; tanggal: string; topik: string }[];
 };
 
+type DataKirimRevisi = {
+  berkasId: number;
+  mahasiswaId: number;
+  nama: string;
+  label: string;
+  keputusan: 'perlu_revisi' | 'disetujui';
+  ringkasan?: string;
+  umumkan: boolean;
+};
 type DataSidang = {
   mahasiswa: { id: number; nim: string; nama: string; jenis: string; fase: string }[];
 };
 
-export type Konteks = { chatId: string; pengirimId: string | null; bolehMengubah: boolean };
+/** `pratinjau`: halaman Uji bot; rencana disusun untuk dilihat tetapi tidak pernah disimpan atau dijalankan. */
+export type Konteks = { chatId: string; pengirimId: string | null; bolehMengubah: boolean; pratinjau?: boolean };
 
 const hariIni = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Makassar' }).format(new Date());
 const kata = (s: string) => s.toLowerCase().normalize('NFKD').replace(/[^a-z0-9 ]/g, ' ').split(/\s+/).filter(Boolean);
@@ -67,34 +83,68 @@ export function cocokPeserta<T extends Pick<Peserta, 'nim' | 'nama'>>(cari: stri
   });
 }
 
-async function simpanRencana(
-  ctx: Konteks,
-  jenis: 'ubah_presensi' | 'mulai_sesi' | 'setujui_bimbingan' | 'ubah_judul' | 'setujui_sidang',
-  data: DataUbah | DataMulai | DataSetuju | DataJudul | DataSidang,
-  ringkasan: string,
-) {
+/**
+ * Satu langkah rencana. Tool rencana_* tidak lagi menyimpan rencana sendiri: setiap tool mengembalikan satu langkah,
+ * lalu bot-wa mengumpulkan semua langkah dari satu pesan menjadi SATU rencana gabungan (simpanRencanaGabungan),
+ * sehingga dosen cukup membalas "ya" sekali dan ringkasan yang dikirim selalu sama dengan yang dijalankan.
+ */
+export type JenisLangkah = 'ubah_presensi' | 'mulai_sesi' | 'setujui_bimbingan' | 'ubah_judul' | 'setujui_sidang' | 'kirim_revisi';
+export type Langkah = { jenis: JenisLangkah; data: unknown; ringkasan: string };
+type DataGabungan = { langkah: Langkah[] };
+
+export const MAKS_LANGKAH = 10;
+
+function simpanRencana(_ctx: Konteks, jenis: JenisLangkah, data: unknown, ringkasan: string) {
+  return {
+    hasil: 'langkah_dicatat' as const,
+    langkah: { jenis, data, ringkasan } satisfies Langkah,
+    ringkasan,
+    pesan: 'Langkah dicatat ke rencana (belum dijalankan). Lanjutkan permintaan lain bila ada; sistem akan mengirim satu ringkasan untuk dikonfirmasi dosen.',
+  };
+}
+
+const kunciLangkah = (l: Langkah) => `${l.jenis}:${JSON.stringify(l.data)}`;
+
+/** Gabungkan ringkasan langkah: satu langkah tetap seperti biasa, beberapa langkah diberi nomor. */
+function ringkasanGabungan(langkah: Langkah[]) {
+  if (langkah.length === 1) return langkah[0].ringkasan;
+  return [
+    `📝 *Rencana gabungan: ${langkah.length} langkah*`,
+    ...langkah.map((l, i) => l.ringkasan.replace(/^📝\s*/, `*${i + 1}.* `)),
+  ].join('\n\n');
+}
+
+/**
+ * Simpan semua langkah dari satu pesan sebagai satu rencana yang menunggu "ya". Langkah ganda (jenis dan data sama)
+ * dibuang. `pratinjau` (halaman Uji bot) hanya menyusun ringkasan tanpa menyimpan apa pun.
+ */
+export async function simpanRencanaGabungan(ctx: Konteks, semua: Langkah[]) {
+  const unik = [...new Map(semua.map((l) => [kunciLangkah(l), l])).values()].slice(0, MAKS_LANGKAH);
+  const ringkasan = ringkasanGabungan(unik);
+  if (ctx.pratinjau || !ctx.pengirimId) {
+    return `${ringkasan}\n\n_(Uji bot: rencana hanya pratinjau, tidak disimpan dan tidak bisa dijalankan.)_`;
+  }
   // Satu rencana aktif per dosen per grup: rencana lama yang belum dikonfirmasi diganti.
   await db()
     .update(botAksi)
     .set({ status: 'dibatalkan', hasil: 'Diganti rencana baru.', selesaiAt: new Date() })
-    .where(and(eq(botAksi.chatId, ctx.chatId), eq(botAksi.pengirimId, ctx.pengirimId!), eq(botAksi.status, 'menunggu')));
+    .where(and(eq(botAksi.chatId, ctx.chatId), eq(botAksi.pengirimId, ctx.pengirimId), eq(botAksi.status, 'menunggu')));
   await db()
     .insert(botAksi)
     .values({
       chatId: ctx.chatId,
-      pengirimId: ctx.pengirimId!,
-      jenis,
-      data,
+      pengirimId: ctx.pengirimId,
+      jenis: unik.length === 1 ? unik[0].jenis : 'gabungan',
+      data: unik.length === 1 ? unik[0].data : ({ langkah: unik } satisfies DataGabungan),
       ringkasan,
       kedaluwarsaAt: new Date(Date.now() + MENIT_BERLAKU * 60_000),
     });
-  return {
-    hasil: 'rencana_dibuat',
-    pesanKonfirmasi: `${ringkasan}\n\nBalas pesan ini dengan *ya* dalam ${MENIT_BERLAKU} menit untuk menyimpan, atau *batal*.`,
-  };
+  const sisa = semua.length > MAKS_LANGKAH ? `\n\n⚠️ Hanya ${MAKS_LANGKAH} langkah pertama yang dimasukkan.` : '';
+  return `${ringkasan}${sisa}\n\nBalas pesan ini dengan *ya* dalam ${MENIT_BERLAKU} menit untuk menjalankan ${unik.length > 1 ? 'semua langkah' : 'rencana ini'}, atau *batal*.`;
 }
 
 function tolakBila(ctx: Konteks) {
+  if (ctx.pratinjau) return null;
   if (!ctx.bolehMengubah) {
     return { hasil: 'error', pesan: 'Mengubah data lewat bot hanya aktif bila daftar nomor yang diizinkan di halaman bot diisi.' };
   }
@@ -299,6 +349,141 @@ export async function rencanaSetujuiSidang(f: { mahasiswa?: string[]; semua?: bo
   return simpanRencana(ctx, 'setujui_sidang', data, ringkasan);
 }
 
+const BAB_VALID = JENIS.map((j) => j.id) as string[];
+const labelBerkas = (b: { jenis: string; versi: number; fileName: string | null }) =>
+  terpisah(b.jenis) ? `${labelJenisPendek(b.jenis)}: ${b.fileName ?? 'berkas'}` : `${labelJenisPendek(b.jenis)} v${b.versi}`;
+
+/** Mahasiswa bimbingan kresna-dosen yang cocok dengan nama/NIM. */
+async function cariMahasiswaBimbingan(cari: string) {
+  const semua = await db().select({ id: users.id, nim: users.nim, nama: users.nama, judul: users.judulSkripsi }).from(users).where(eq(users.role, 'mahasiswa'));
+  return cocokPeserta(cari, semua.map((m) => ({ ...m, nim: m.nim ?? '' })));
+}
+
+/**
+ * Tool: rencana mengirim keputusan berkas (kirim revisi / setujui bab) di kresna-dosen. Berkas yang dipilih: yang
+ * belum diputus (status menunggu atau draf) milik mahasiswa itu, opsional dibatasi bab. Semua catatan DRAF ikut
+ * terkirim ke mahasiswa, sama seperti tombol Kirim di web.
+ */
+export async function rencanaKeputusanBerkas(
+  f: { mahasiswa: string; bab?: string; keputusan: 'perlu_revisi' | 'disetujui'; ringkasan?: string },
+  ctx: Konteks,
+) {
+  const tolak = tolakBila(ctx);
+  if (tolak) return tolak;
+  const cocok = await cariMahasiswaBimbingan(f.mahasiswa);
+  if (cocok.length !== 1) {
+    return {
+      hasil: 'perlu_perbaikan',
+      pesan: cocok.length === 0 ? `Tidak ada mahasiswa bimbingan yang cocok dengan "${f.mahasiswa}".` : `Ada ${cocok.length} mahasiswa yang cocok; minta nama lengkap atau NIM.`,
+      kandidat: cocok.slice(0, 10).map((m) => `${m.nama} (${m.nim})`),
+    };
+  }
+  const m = cocok[0];
+  const bab = f.bab && BAB_VALID.includes(f.bab) ? f.bab : undefined;
+  const terbuka = await db()
+    .select()
+    .from(berkas)
+    .where(and(eq(berkas.mahasiswaId, m.id), inArray(berkas.status, ['menunggu', 'draf']), ...(bab ? [eq(berkas.jenis, bab)] : [])))
+    .orderBy(desc(berkas.createdAt));
+  if (terbuka.length !== 1) {
+    return {
+      hasil: 'perlu_perbaikan',
+      pesan:
+        terbuka.length === 0
+          ? `${m.nama} tidak punya berkas${bab ? ` ${labelJenisPendek(bab)}` : ''} yang menunggu keputusan.`
+          : `${m.nama} punya ${terbuka.length} berkas yang menunggu keputusan; tanyakan bab yang dimaksud.`,
+      berkasMenunggu: terbuka.map((b) => `${labelBerkas(b)} (${b.jenis}, status ${b.status})`),
+    };
+  }
+  const b = terbuka[0];
+  const label = labelBerkas(b);
+  const draf = await db()
+    .select({ jenis: revisi.jenis })
+    .from(revisi)
+    .where(and(eq(revisi.berkasId, b.id), eq(revisi.status, 'draf')));
+  const wajib = draf.filter((r) => r.jenis === 'wajib').length;
+  const saran = draf.length - wajib;
+  const ringkasan = f.ringkasan?.replace(/\s+/g, ' ').trim().slice(0, 1500) || undefined;
+
+  if (f.keputusan === 'perlu_revisi') {
+    if (draf.length === 0 && !ringkasan) {
+      return {
+        hasil: 'perlu_perbaikan',
+        pesan: `Belum ada catatan draf untuk ${m.nama} ${label}. Tulis catatannya di web, atau minta dosen menyebutkan ringkasan revisinya.`,
+      };
+    }
+    const teks = [
+      '📝 *Kirim revisi ke mahasiswa*',
+      `${m.nama} (${m.nim}) · ${label}`,
+      `Keputusan: *Perlu revisi* · ${wajib} catatan wajib, ${saran} saran ikut terkirim`,
+      ...(ringkasan ? [`Ringkasan: _${ringkasan}_`] : []),
+    ].join('\n');
+    return simpanRencana(ctx, 'kirim_revisi', { berkasId: b.id, mahasiswaId: m.id, nama: m.nama, label, keputusan: 'perlu_revisi', ringkasan, umumkan: false } satisfies DataKirimRevisi, teks);
+  }
+
+  // Setujui bab: aturan approve hanya diperingatkan, keputusan tetap di tangan dosen (sama seperti tombol Setujui di web).
+  const rekap = await rekapPerbaikan(b.id);
+  const peringatan =
+    rekap && !rekap.bolehDisetujui
+      ? rekap.pengecekanKe < 2
+        ? 'ini baru pengecekan ke-1'
+        : rekap.belumDinilai > 0
+          ? `${rekap.belumDinilai} catatan bimbingan sebelumnya belum dinilai`
+          : `sub bab yang belum lebih dari ${AMBANG_PERSEN}% diperbaiki: ${rekap.perSubBab
+              .filter((x) => !x.lolos)
+              .map((x) => `${x.subBab} (${x.persen}%)`)
+              .join(', ')}`
+      : null;
+  const teks = [
+    '📝 *Setujui bab*',
+    `${m.nama} (${m.nim}) · ${label} → *Disetujui* ✅`,
+    draf.length ? `${wajib} catatan wajib, ${saran} saran yang masih draf ikut terkirim.` : null,
+    'Mahasiswa diberi tahu dan hasilnya diumumkan di grup laporan WhatsApp.',
+    peringatan ? `⚠️ Belum memenuhi aturan approve (${peringatan}). Tetap disetujui bila Anda membalas ya.` : null,
+  ]
+    .filter(Boolean)
+    .join('\n');
+  return simpanRencana(
+    ctx,
+    'kirim_revisi',
+    {
+      berkasId: b.id,
+      mahasiswaId: m.id,
+      nama: m.nama,
+      label,
+      keputusan: 'disetujui',
+      ringkasan: ringkasan ?? 'Disetujui oleh dosen pembimbing. Silakan lanjut ke tahap berikutnya.',
+      umumkan: true,
+    } satisfies DataKirimRevisi,
+    teks,
+  );
+}
+
+/** Jalankan kirim revisi / setujui bab; dicek ulang bahwa berkas masih menunggu keputusan. */
+async function jalankanKirimRevisi(d: DataKirimRevisi) {
+  const [b] = await db().select().from(berkas).where(eq(berkas.id, d.berkasId)).limit(1);
+  if (!b) throw new Error(`Berkas ${d.label} milik ${d.nama} tidak ditemukan.`);
+  if (b.status !== 'menunggu' && b.status !== 'draf') {
+    throw new Error(`${d.nama} ${d.label} sudah berstatus ${b.status === 'digantikan' ? 'digantikan versi baru' : b.status.replace('_', ' ')}; tidak dikirim ulang.`);
+  }
+  const h = await kirimRevisi(d.berkasId, d.keputusan, d.ringkasan, 'bot');
+  const baris = [
+    d.keputusan === 'disetujui'
+      ? `✅ ${d.nama} · ${d.label} disetujui${h.terkirim ? ` (${h.terkirim} catatan ikut terkirim)` : ''}. Mahasiswa sudah diberi tahu.`
+      : `✅ Revisi terkirim ke ${d.nama} · ${d.label}: ${h.terkirim} catatan, keputusan Perlu revisi.`,
+  ];
+  if (d.umumkan) {
+    try {
+      const hasil = await kirimKeGrup(teksPengumuman([{ nama: d.nama, label: d.label, keputusan: d.keputusan }]));
+      const ok = hasil.filter((x) => x.terkirim).map((x) => x.grup);
+      baris.push(ok.length ? `Diumumkan di grup: ${ok.join(', ')}.` : `⚠️ Gagal mengumumkan di grup: ${hasil.map((x) => x.error).join('; ')}`);
+    } catch (e) {
+      baris.push(`⚠️ Belum diumumkan di grup: ${(e as Error).message}`);
+    }
+  }
+  return baris.join('\n');
+}
+
 /**
  * Tool: rencana mengubah judul skripsi mahasiswa di kresna-dosen (users.judul_skripsi). Judul di SISKA tidak ikut berubah.
  */
@@ -353,7 +538,7 @@ export async function tanganiKonfirmasi(teks: string, ctx: Konteks): Promise<str
 
   if (batal) {
     await db().update(botAksi).set({ status: 'dibatalkan', hasil: 'Dibatalkan dosen.', selesaiAt: new Date() }).where(eq(botAksi.id, r.id));
-    return 'Rencana dibatalkan. Tidak ada yang diubah di SISKA.';
+    return 'Rencana dibatalkan. Tidak ada yang diubah.';
   }
   if (r.kedaluwarsaAt.getTime() < Date.now()) {
     await db().update(botAksi).set({ status: 'dibatalkan', hasil: 'Kedaluwarsa.', selesaiAt: new Date() }).where(eq(botAksi.id, r.id));
@@ -368,60 +553,80 @@ export async function tanganiKonfirmasi(teks: string, ctx: Konteks): Promise<str
     .returning({ id: botAksi.id });
   if (!klaim) return 'Rencana ini sudah diproses sebelumnya.';
 
-  try {
-    let hasil: string;
-    if (r.jenis === 'ubah_presensi') {
-      const d = r.data as DataUbah;
-      const u = await ubahPresensi(d.kelasId, d.pertemuanId, d.perubahan.map(({ nim, status, keterangan }) => ({ nim, status, keterangan })));
-      const { peserta } = await getPresensi(d.kelasId, d.pertemuanId);
-      const n = (s: Kode | null) => peserta.filter((x) => x.status === s).length;
-      hasil = [
-        `✅ Tersimpan di SISKA: ${u.diubah} mahasiswa, ${d.kelas} pertemuan ke-${d.pertemuanKe}.`,
-        ...u.ditolak.map((x) => `⚠️ ${x.nim}: ${x.alasan}`),
-        `Rekap sekarang: ${n('H')} Hadir, ${n('S')} Sakit, ${n('I')} Izin, ${n('A')} Alfa, ${n(null)} belum diisi.`,
-      ].join('\n');
-    } else if (r.jenis === 'ubah_judul') {
-      const d = r.data as DataJudul;
-      await db().update(users).set({ judulSkripsi: d.judulBaru }).where(eq(users.id, d.userId));
-      await catatAktivitas(d.userId, `Judul skripsi diubah dosen: ${d.judulBaru}`);
-      const [cek] = await db().select({ judul: users.judulSkripsi }).from(users).where(eq(users.id, d.userId)).limit(1);
-      hasil = cek?.judul === d.judulBaru ? `✅ Judul skripsi ${d.nama} di kresna-dosen sekarang:\n*${d.judulBaru}*` : `⚠️ Judul ${d.nama} belum berubah. Cek di panel dosen.`;
-    } else if (r.jenis === 'setujui_bimbingan') {
-      const d = r.data as DataSetuju;
-      const h = await setujuiBimbingan(d.jenis, d.idKaryaAkhir, d.bimbingan.map((b) => b.id));
-      const ke = (ids: number[]) => ids.map((id) => `ke-${d.bimbingan.find((b) => b.id === id)?.ke ?? id}`).join(', ');
-      hasil = [
-        h.disetujui.length ? `✅ Disetujui di SISKA: ${d.nama}, bimbingan ${ke(h.disetujui)}.` : `Tidak ada bimbingan ${d.nama} yang berubah.`,
-        h.sudah_disetujui_sebelumnya.length ? `Sudah disetujui sebelumnya: ${ke(h.sudah_disetujui_sebelumnya)}.` : null,
-        h.gagal.length ? `⚠️ Belum berubah di SISKA: ${ke(h.gagal)}. Cek di web SISKA.` : null,
-      ]
-        .filter(Boolean)
-        .join('\n');
-    } else if (r.jenis === 'setujui_sidang') {
-      const d = r.data as DataSidang;
-      const h = await setujuiSidang(d.mahasiswa.map((m) => m.id));
-      const nama = (xs: { nama: string }[]) => xs.map((x) => x.nama).join(', ');
-      hasil = [
-        h.disetujui.length ? `✅ Sidang disetujui di SISKA: ${nama(h.disetujui)}.` : 'Tidak ada persetujuan sidang yang berubah.',
-        h.sudah_disetujui_sebelumnya.length ? `Sudah disetujui sebelumnya: ${nama(h.sudah_disetujui_sebelumnya)}.` : null,
-        h.gagal.length ? `⚠️ Belum berubah di SISKA: ${nama(h.gagal)}. Cek di web SISKA.` : null,
-        h.disetujui.length
-          ? `Status keseluruhan: ${h.disetujui.map((x) => `${x.nama} ${x.status_keseluruhan}`).join('; ')}.`
-          : null,
-      ]
-        .filter(Boolean)
-        .join('\n');
-    } else {
-      const d = r.data as DataMulai;
-      await mulaiSesi(d.pertemuanId);
-      const p = (await getKelas(d.kelasId)).pertemuan.find((x) => x.id === d.pertemuanId);
-      hasil = `✅ Sesi ${d.kelas} pertemuan ke-${d.pertemuanKe} dimulai. Status di SISKA sekarang: ${p?.status ?? 'tidak terbaca'}.`;
+  // Rencana lama (satu jenis) tetap bisa dijalankan; rencana gabungan dijalankan langkah demi langkah, berurutan.
+  const langkah: Langkah[] =
+    r.jenis === 'gabungan' ? (r.data as DataGabungan).langkah : [{ jenis: r.jenis as JenisLangkah, data: r.data, ringkasan: r.ringkasan }];
+  const baris: string[] = [];
+  let berhasil = 0;
+  for (const [i, l] of langkah.entries()) {
+    const no = langkah.length > 1 ? `*${i + 1}.* ` : '';
+    try {
+      baris.push(no + (await jalankanLangkah(l.jenis, l.data)));
+      berhasil += 1;
+    } catch (e) {
+      // Satu langkah gagal tidak menghentikan langkah berikutnya; semuanya dilaporkan.
+      baris.push(`${no}❌ Gagal: ${(e as Error).message.slice(0, 300)}`);
     }
-    await db().update(botAksi).set({ hasil }).where(eq(botAksi.id, r.id));
-    return hasil;
-  } catch (e) {
-    const pesan = (e as Error).message.slice(0, 300);
-    await db().update(botAksi).set({ status: 'gagal', hasil: pesan }).where(eq(botAksi.id, r.id));
-    return `❌ Gagal menyimpan ke SISKA: ${pesan}`;
   }
+  const hasil = baris.join(langkah.length > 1 ? '\n\n' : '\n');
+  await db()
+    .update(botAksi)
+    .set({ status: berhasil === 0 ? 'gagal' : 'dijalankan', hasil: hasil.slice(0, 4000) })
+    .where(eq(botAksi.id, r.id));
+  return hasil;
+}
+
+/** Jalankan satu langkah rencana dan kembalikan teks hasilnya. Melempar galat bila gagal. */
+async function jalankanLangkah(jenis: JenisLangkah, data: unknown): Promise<string> {
+  let hasil: string;
+  if (jenis === 'ubah_presensi') {
+    const d = data as DataUbah;
+    const u = await ubahPresensi(d.kelasId, d.pertemuanId, d.perubahan.map(({ nim, status, keterangan }) => ({ nim, status, keterangan })));
+    const { peserta } = await getPresensi(d.kelasId, d.pertemuanId);
+    const n = (s: Kode | null) => peserta.filter((x) => x.status === s).length;
+    hasil = [
+      `✅ Tersimpan di SISKA: ${u.diubah} mahasiswa, ${d.kelas} pertemuan ke-${d.pertemuanKe}.`,
+      ...u.ditolak.map((x) => `⚠️ ${x.nim}: ${x.alasan}`),
+      `Rekap sekarang: ${n('H')} Hadir, ${n('S')} Sakit, ${n('I')} Izin, ${n('A')} Alfa, ${n(null)} belum diisi.`,
+    ].join('\n');
+  } else if (jenis === 'ubah_judul') {
+    const d = data as DataJudul;
+    await db().update(users).set({ judulSkripsi: d.judulBaru }).where(eq(users.id, d.userId));
+    await catatAktivitas(d.userId, `Judul skripsi diubah dosen: ${d.judulBaru}`);
+    const [cek] = await db().select({ judul: users.judulSkripsi }).from(users).where(eq(users.id, d.userId)).limit(1);
+    hasil = cek?.judul === d.judulBaru ? `✅ Judul skripsi ${d.nama} di kresna-dosen sekarang:\n*${d.judulBaru}*` : `⚠️ Judul ${d.nama} belum berubah. Cek di panel dosen.`;
+  } else if (jenis === 'setujui_bimbingan') {
+    const d = data as DataSetuju;
+    const h = await setujuiBimbingan(d.jenis, d.idKaryaAkhir, d.bimbingan.map((b) => b.id));
+    const ke = (ids: number[]) => ids.map((id) => `ke-${d.bimbingan.find((b) => b.id === id)?.ke ?? id}`).join(', ');
+    hasil = [
+      h.disetujui.length ? `✅ Disetujui di SISKA: ${d.nama}, bimbingan ${ke(h.disetujui)}.` : `Tidak ada bimbingan ${d.nama} yang berubah.`,
+      h.sudah_disetujui_sebelumnya.length ? `Sudah disetujui sebelumnya: ${ke(h.sudah_disetujui_sebelumnya)}.` : null,
+      h.gagal.length ? `⚠️ Belum berubah di SISKA: ${ke(h.gagal)}. Cek di web SISKA.` : null,
+    ]
+      .filter(Boolean)
+      .join('\n');
+  } else if (jenis === 'setujui_sidang') {
+    const d = data as DataSidang;
+    const h = await setujuiSidang(d.mahasiswa.map((m) => m.id));
+    const nama = (xs: { nama: string }[]) => xs.map((x) => x.nama).join(', ');
+    hasil = [
+      h.disetujui.length ? `✅ Sidang disetujui di SISKA: ${nama(h.disetujui)}.` : 'Tidak ada persetujuan sidang yang berubah.',
+      h.sudah_disetujui_sebelumnya.length ? `Sudah disetujui sebelumnya: ${nama(h.sudah_disetujui_sebelumnya)}.` : null,
+      h.gagal.length ? `⚠️ Belum berubah di SISKA: ${nama(h.gagal)}. Cek di web SISKA.` : null,
+      h.disetujui.length
+        ? `Status keseluruhan: ${h.disetujui.map((x) => `${x.nama} ${x.status_keseluruhan}`).join('; ')}.`
+        : null,
+    ]
+      .filter(Boolean)
+      .join('\n');
+  } else if (jenis === 'kirim_revisi') {
+    hasil = await jalankanKirimRevisi(data as DataKirimRevisi);
+  } else {
+    const d = data as DataMulai;
+    await mulaiSesi(d.pertemuanId);
+    const p = (await getKelas(d.kelasId)).pertemuan.find((x) => x.id === d.pertemuanId);
+    hasil = `✅ Sesi ${d.kelas} pertemuan ke-${d.pertemuanKe} dimulai. Status di SISKA sekarang: ${p?.status ?? 'tidak terbaca'}.`;
+  }
+  return hasil;
 }
