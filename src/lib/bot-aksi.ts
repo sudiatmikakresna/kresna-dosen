@@ -6,6 +6,7 @@ import { cariKelas, perluKelas } from './bot-siska';
 import { getKelas, mulaiSesi, type Pertemuan } from './siska/kelas';
 import { getPresensi, ubahPresensi, type Peserta } from './siska/presensi';
 import { daftarBimbingan, daftarKaryaAkhir, setujuiBimbingan, type JenisKarya, type KaryaAkhir } from './siska/bimbingan';
+import { daftarPersetujuanSidang, setujuiSidang } from './siska/sidang';
 
 /**
  * Absensi SISKA lewat bot WhatsApp, dengan konfirmasi dua langkah:
@@ -13,7 +14,8 @@ import { daftarBimbingan, daftarKaryaAkhir, setujuiBimbingan, type JenisKarya, t
  *      kelas, pertemuan, dan mahasiswa, lalu menyimpan RENCANA di bot_aksi. Belum ada yang berubah di SISKA.
  *   2. Bot mengirim ringkasan rencana (teks dari kode ini, bukan dari Claude). Dosen membalas "ya".
  *      Yang dijalankan persis isi rencana, sekali, sebelum kedaluwarsa. Claude tidak ikut di langkah ini.
- * Persetujuan bimbingan skripsi/karya terapan memakai alur yang sama (rencana_setujui_bimbingan_siska → "ya").
+ * Persetujuan bimbingan skripsi/karya terapan memakai alur yang sama (rencana_setujui_bimbingan_siska → "ya"),
+ * begitu juga persetujuan sidang (rencana_setujui_sidang_siska → "ya").
  * Menutup presensi (Alfa massal) dan mengakhiri sesi sengaja tidak tersedia.
  */
 
@@ -41,6 +43,10 @@ type DataSetuju = {
   bimbingan: { id: number; ke: number | null; tanggal: string; topik: string }[];
 };
 
+type DataSidang = {
+  mahasiswa: { id: number; nim: string; nama: string; jenis: string; fase: string }[];
+};
+
 export type Konteks = { chatId: string; pengirimId: string | null; bolehMengubah: boolean };
 
 const hariIni = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Makassar' }).format(new Date());
@@ -63,8 +69,8 @@ export function cocokPeserta<T extends Pick<Peserta, 'nim' | 'nama'>>(cari: stri
 
 async function simpanRencana(
   ctx: Konteks,
-  jenis: 'ubah_presensi' | 'mulai_sesi' | 'setujui_bimbingan' | 'ubah_judul',
-  data: DataUbah | DataMulai | DataSetuju | DataJudul,
+  jenis: 'ubah_presensi' | 'mulai_sesi' | 'setujui_bimbingan' | 'ubah_judul' | 'setujui_sidang',
+  data: DataUbah | DataMulai | DataSetuju | DataJudul | DataSidang,
   ringkasan: string,
 ) {
   // Satu rencana aktif per dosen per grup: rencana lama yang belum dikonfirmasi diganti.
@@ -241,6 +247,59 @@ export async function rencanaSetujuiBimbingan(f: { mahasiswa: string; jenis?: Je
 }
 
 /**
+ * Tool: rencana menyetujui sidang di SISKA (Tugas Akhir → Persetujuan Sidang) untuk mahasiswa yang disebut, atau
+ * semua yang masih menunggu persetujuan dosen bila `semua` = true. Rencana hanya dibuat bila SEMUA nama jelas.
+ */
+export async function rencanaSetujuiSidang(f: { mahasiswa?: string[]; semua?: boolean }, ctx: Konteks) {
+  const tolak = tolakBila(ctx);
+  if (tolak) return tolak;
+  const nama = (f.mahasiswa ?? []).map((m) => m.trim()).filter(Boolean).slice(0, 30);
+  if (!f.semua && nama.length === 0) return { hasil: 'perlu_perbaikan', pesan: 'Sebutkan mahasiswa yang akan disetujui sidangnya, atau minta "semua".' };
+
+  const checklist = await daftarPersetujuanSidang({ status: 'semua' });
+  const menunggu = checklist.filter((s) => !s.disetujui_saya);
+  const masalah: string[] = [];
+  const sudah: string[] = [];
+  const dipilih = new Map<number, (typeof checklist)[number]>();
+  if (f.semua) {
+    for (const s of menunggu) dipilih.set(s.id_karya_akhir_dosen, s);
+  } else {
+    for (const n of nama) {
+      const cocok = cocokPeserta(n, checklist);
+      if (cocok.length === 0) masalah.push(`"${n}" tidak ada di checklist persetujuan sidang.`);
+      else if (cocok.length > 1) masalah.push(`"${n}" cocok dengan beberapa mahasiswa: ${cocok.map((m) => `${m.nama} (${m.nim})`).join(', ')}.`);
+      else if (cocok[0].disetujui_saya) sudah.push(cocok[0].nama);
+      else dipilih.set(cocok[0].id_karya_akhir_dosen, cocok[0]);
+    }
+  }
+  if (masalah.length) {
+    return {
+      hasil: 'perlu_perbaikan',
+      masalah,
+      menungguPersetujuan: menunggu.map((s) => `${s.nama} (${s.nim}, ${s.jenis_label} ${s.fase})`),
+      saran: 'Tanyakan ke dosen nama lengkap atau NIM yang dimaksud.',
+    };
+  }
+  if (dipilih.size === 0) {
+    return {
+      hasil: 'tidak_ada_perubahan',
+      pesan: sudah.length ? `Sidang ${sudah.join(', ')} sudah Anda setujui di SISKA.` : 'Tidak ada mahasiswa yang menunggu persetujuan sidang Anda.',
+    };
+  }
+  const daftar = [...dipilih.values()];
+  const ringkasan = [
+    '📝 *Rencana setujui sidang di SISKA*',
+    ...daftar.map((s) => `- ${s.nim} ${s.nama} · ${s.jenis_label}, sidang ${s.fase}`),
+    ...(sudah.length ? [`_Sudah disetujui sebelumnya, dilewati: ${sudah.join(', ')}_`] : []),
+    'Persetujuan sidang tidak bisa dibatalkan dari bot (hanya admin SISKA).',
+  ].join('\n');
+  const data: DataSidang = {
+    mahasiswa: daftar.map((s) => ({ id: s.id_karya_akhir_dosen, nim: s.nim, nama: s.nama, jenis: s.jenis_label, fase: s.fase })),
+  };
+  return simpanRencana(ctx, 'setujui_sidang', data, ringkasan);
+}
+
+/**
  * Tool: rencana mengubah judul skripsi mahasiswa di kresna-dosen (users.judul_skripsi). Judul di SISKA tidak ikut berubah.
  */
 export async function rencanaUbahJudul(f: { mahasiswa: string; judul: string }, ctx: Konteks) {
@@ -335,6 +394,20 @@ export async function tanganiKonfirmasi(teks: string, ctx: Konteks): Promise<str
         h.disetujui.length ? `✅ Disetujui di SISKA: ${d.nama}, bimbingan ${ke(h.disetujui)}.` : `Tidak ada bimbingan ${d.nama} yang berubah.`,
         h.sudah_disetujui_sebelumnya.length ? `Sudah disetujui sebelumnya: ${ke(h.sudah_disetujui_sebelumnya)}.` : null,
         h.gagal.length ? `⚠️ Belum berubah di SISKA: ${ke(h.gagal)}. Cek di web SISKA.` : null,
+      ]
+        .filter(Boolean)
+        .join('\n');
+    } else if (r.jenis === 'setujui_sidang') {
+      const d = r.data as DataSidang;
+      const h = await setujuiSidang(d.mahasiswa.map((m) => m.id));
+      const nama = (xs: { nama: string }[]) => xs.map((x) => x.nama).join(', ');
+      hasil = [
+        h.disetujui.length ? `✅ Sidang disetujui di SISKA: ${nama(h.disetujui)}.` : 'Tidak ada persetujuan sidang yang berubah.',
+        h.sudah_disetujui_sebelumnya.length ? `Sudah disetujui sebelumnya: ${nama(h.sudah_disetujui_sebelumnya)}.` : null,
+        h.gagal.length ? `⚠️ Belum berubah di SISKA: ${nama(h.gagal)}. Cek di web SISKA.` : null,
+        h.disetujui.length
+          ? `Status keseluruhan: ${h.disetujui.map((x) => `${x.nama} ${x.status_keseluruhan}`).join('; ')}.`
+          : null,
       ]
         .filter(Boolean)
         .join('\n');
