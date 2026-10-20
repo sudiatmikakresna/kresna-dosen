@@ -5,7 +5,8 @@ import { siskaSiap } from './siska/client';
 import { getKelas, jadwalTanggal, listKelas, type Kelas } from './siska/kelas';
 import { getPresensi } from './siska/presensi';
 import { daftarBimbingan, type JenisKarya } from './siska/bimbingan';
-import { cariMahasiswaKaryaAkhir } from './bot-aksi';
+import { daftarPersetujuanSidang, detailPersetujuanSidang, type StatusSidang } from './siska/sidang';
+import { cariMahasiswaKaryaAkhir, cocokPeserta } from './bot-aksi';
 
 /**
  * Tool SISKA untuk bot WhatsApp, HANYA membaca: jadwal mengajar, presensi satu pertemuan, dan rekap
@@ -200,5 +201,42 @@ export async function bimbinganBelumDisetujuiSiska(f: { mahasiswa?: string; jeni
     jumlahMahasiswa: rekap.length,
     menungguPersetujuan: rekap.filter((r) => r.belumDisetujui > 0),
     semuaSudahDisetujui: rekap.filter((r) => r.belumDisetujui === 0).map((r) => r.mahasiswa),
+  };
+}
+
+/**
+ * Persetujuan sidang di SISKA (Tugas Akhir → Persetujuan Sidang). Tanpa mahasiswa: checklist mahasiswa bimbingan
+ * (bawaan yang belum disetujui dosen). Dengan mahasiswa: status persetujuan pembimbing I/II dan kaprodi.
+ */
+export async function persetujuanSidangSiska(f: { mahasiswa?: string; status?: StatusSidang; jenis?: JenisKarya }) {
+  const baris = (s: Awaited<ReturnType<typeof daftarPersetujuanSidang>>[number]) => ({
+    mahasiswa: `${s.nama} (${s.nim})`,
+    jenis: s.jenis_label,
+    fase: s.fase,
+    judul: s.judul.slice(0, 160),
+    persetujuanSaya: s.disetujui_saya ? 'Disetujui' : 'Menunggu',
+    statusKeseluruhan: s.lengkap ? 'Lengkap' : 'Belum Lengkap',
+  });
+  if (f.mahasiswa?.trim()) {
+    const semua = await daftarPersetujuanSidang({ status: 'semua', jenis: f.jenis });
+    const cocok = cocokPeserta(f.mahasiswa, semua);
+    if (cocok.length !== 1) {
+      return {
+        hasil: cocok.length ? 'perlu_nama_lengkap' : 'tidak_ditemukan',
+        pesan: cocok.length ? undefined : 'Mahasiswa tidak ada di checklist persetujuan sidang (hanya mahasiswa bimbingan yang terdaftar di kelas bimbingan periode berjalan).',
+        kandidat: cocok.slice(0, 10).map((s) => `${s.nama} (${s.nim})`),
+      };
+    }
+    const s = cocok[0];
+    const d = await detailPersetujuanSidang(s.jenis, s.id_karya_akhir);
+    return { sumber: 'SISKA', ...baris(s), tahapDetail: d.tahap_detail, sidangProposal: d.sidang_proposal, sidangAkhir: d.sidang_akhir };
+  }
+  const status = f.status ?? 'belum';
+  const daftar = await daftarPersetujuanSidang({ status, jenis: f.jenis });
+  return {
+    sumber: 'SISKA',
+    filter: status === 'belum' ? 'belum Anda setujui' : status === 'disetujui' ? 'sudah Anda setujui' : 'semua',
+    jumlah: daftar.length,
+    mahasiswa: daftar.map(baris),
   };
 }
