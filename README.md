@@ -100,7 +100,7 @@ Tiga server MCP bisa dipasang sebagai **custom connector** di Claude chat (claud
 | --- | --- | --- |
 | WhatsApp (WAHA) | `https://kresna-dosen.vercel.app/api/waha/mcp` | `status_whatsapp`, `daftar_chat`, `daftar_grup`, `baca_pesan`, `riwayat_grup_tersimpan`, `cek_nomor`, `kirim_pesan`, `tandai_dibaca` |
 | Bimbingan Skripsi | `https://kresna-dosen.vercel.app/api/mcp` | tool review di atas |
-| SISKA (presensi kuliah, bimbingan karya akhir) | `https://kresna-dosen.vercel.app/api/siska/mcp` | `daftar_kelas`, `jadwal_mengajar`, `detail_kelas`, `lihat_presensi`, `mulai_pertemuan`, `ubah_presensi`, `tutup_presensi`, `daftar_mahasiswa_karya_akhir`, `daftar_bimbingan_karya_akhir`, `setujui_bimbingan_karya_akhir` |
+| SISKA (presensi kuliah, bimbingan karya akhir, persetujuan sidang) | `https://kresna-dosen.vercel.app/api/siska/mcp` | `daftar_kelas`, `jadwal_mengajar`, `detail_kelas`, `lihat_presensi`, `mulai_pertemuan`, `ubah_presensi`, `tutup_presensi`, `daftar_mahasiswa_karya_akhir`, `daftar_bimbingan_karya_akhir`, `setujui_bimbingan_karya_akhir`, `daftar_persetujuan_sidang`, `detail_persetujuan_sidang`, `setujui_sidang` |
 
 Pasang: Claude → **Customize → Connectors → Add → Custom → Web** → isi nama dan URL → **Add** → **Connect**.
 Claude membuka `/oauth/izin`; masuk sebagai dosen lalu klik **Izinkan**. Koneksi aktif terlihat dan bisa dicabut di
@@ -111,7 +111,12 @@ environment Vercel; client SISKA ada di `src/lib/siska/`. Persetujuan bimbingan 
 (`src/lib/siska/bimbingan.ts`) memakai endpoint yang sama dengan menu Tingkat Akhir → Bimbingan di SISKA: datatable
 `/dosen/{skripsi|karya-terapan}/{id}/bimbingan/datatable` dan Inertia POST `…/bimbingan/bulk-approve` dengan
 `{ ids }`; hanya id milik karya akhir itu yang dikirim dan statusnya dibaca ulang setelahnya.
-`ubah_presensi`, `tutup_presensi`, dan `setujui_bimbingan_karya_akhir` mengubah data SISKA
+Persetujuan sidang (`src/lib/siska/sidang.ts`) memakai menu Tugas Akhir → Persetujuan Sidang: datatable
+`/dosen/persetujuan-sidang/datatable` (filter `status_disetujui`, `id_ref_jenis_ka`), Inertia POST
+`/dosen/persetujuan-sidang/bulk-approve` dengan `{ ids: [id_karya_akhir_dosen] }`, dan detail
+`/dosen/{skripsi|karya-terapan}/{id}/persetujuan-sidang` (slot pembimbing I/II dan kaprodi). Hanya id yang ada di
+checklist dosen yang dikirim; statusnya dibaca ulang setelahnya. Persetujuan sidang hanya bisa dibatalkan admin SISKA.
+`ubah_presensi`, `tutup_presensi`, `setujui_bimbingan_karya_akhir`, dan `setujui_sidang` mengubah data SISKA
 atas nama dosen, jadi biarkan pada **Needs approval**.
 
 Cara kerjanya (aplikasi menjadi server otorisasi OAuth 2.1 sendiri, tanpa layanan luar):
@@ -260,6 +265,10 @@ pesan grup ──webhook WAHA (HMAC)──► bot di-mention / pesan bot dibalas
   belum disetujui, atau daftar bimbingan satu mahasiswa) dan `rencana_setujui_bimbingan_siska` (aksi). Alurnya sama
   dengan absensi: bot mengirim rencana (mahasiswa, bimbingan ke-, tanggal, topik), lalu dosen membalas "ya" dalam
   10 menit; yang dijalankan persis isi rencana (bulk-approve SISKA), sekali, dan hasilnya dibaca ulang dari SISKA.
+- Persetujuan sidang di SISKA lewat bot: `persetujuan_sidang_siska` (baca: checklist mahasiswa yang belum/sudah
+  disetujui, atau status pembimbing I/II dan kaprodi untuk satu mahasiswa) dan `rencana_setujui_sidang_siska` (aksi:
+  mahasiswa yang disebut, atau semua yang menunggu). Alurnya sama: rencana (NIM, nama, jenis, fase) → dosen membalas
+  "ya" dalam 10 menit → bulk-approve persetujuan sidang SISKA, dibaca ulang dari SISKA.
 - Siapa yang boleh bertanya diatur di halaman bot (**Siapa yang boleh bertanya**, kunci `wa_bot_nomor_izin` di tabel
   `pengaturan`; awalnya hanya 081934374633). Pengirim dicocokkan lewat nomor maupun LID-nya (diambil dari WAHA).
   Mention dari nomor lain diabaikan tanpa balasan dan tercatat "Dibatasi". Kosongkan daftar untuk mengizinkan semua.
