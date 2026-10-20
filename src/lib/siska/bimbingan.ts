@@ -12,7 +12,7 @@ export type JenisKarya = 'karya_terapan' | 'skripsi';
 const PREFIX: Record<JenisKarya, string> = { karya_terapan: '/dosen/karya-terapan', skripsi: '/dosen/skripsi' };
 const MAKS_BARIS = 500;
 
-const teks = (v: unknown) =>
+export const teks = (v: unknown) =>
   typeof v === 'string'
     ? v
         .replace(/<[^>]+>/g, ' ')
@@ -24,7 +24,7 @@ const teks = (v: unknown) =>
 const fase = (nama: unknown, jenis: JenisKarya) => (nama === 'Tugas Akhir' ? (jenis === 'skripsi' ? 'Skripsi' : 'Karya Terapan') : teks(nama) || '-');
 
 /** Ambil semua baris datatable SISKA (berhalaman 100) sampai `total` atau MAKS_BARIS. */
-async function semuaBaris(path: string, filter: Record<string, string>) {
+export async function semuaBaris(path: string, filter: Record<string, string>) {
   const hasil: Record<string, any>[] = [];
   for (let page = 1; page <= Math.ceil(MAKS_BARIS / 100); page++) {
     const q = new URLSearchParams({ page: String(page), per_page: '100', search: '', ...filter });

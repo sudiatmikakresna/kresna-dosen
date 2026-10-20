@@ -43,6 +43,9 @@ const TOOLS_SISKA: [string, string][] = [
   ['daftar_mahasiswa_karya_akhir', 'Mahasiswa skripsi / karya terapan yang Anda bimbing'],
   ['daftar_bimbingan_karya_akhir', 'Catatan bimbingan satu mahasiswa (bawaan: yang belum disetujui)'],
   ['setujui_bimbingan_karya_akhir', 'Menyetujui catatan bimbingan di SISKA atas nama Anda'],
+  ['daftar_persetujuan_sidang', 'Checklist persetujuan sidang mahasiswa bimbingan (bawaan: yang belum Anda setujui)'],
+  ['detail_persetujuan_sidang', 'Status persetujuan sidang satu mahasiswa (pembimbing I/II, kaprodi)'],
+  ['setujui_sidang', 'Menyetujui mahasiswa untuk sidang di SISKA atas nama Anda'],
 ];
 
 export default async function McpPage() {

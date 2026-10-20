@@ -4,8 +4,8 @@ import { and, asc, desc, eq, gt, inArray, sql } from 'drizzle-orm';
 import { botDokumen, botTanya, db, pengaturan, waGrup } from '@/db';
 import { progresSemuaMahasiswa, riwayatBimbingan } from './bot-riwayat';
 import { aktivitasKelasBengkel, bengkelSiap, poinKelasBengkel, statusMahasiswaBengkel } from './bengkel';
-import { rencanaMulaiSesi, rencanaSetujuiBimbingan, rencanaUbahJudul, rencanaUbahPresensi, tanganiKonfirmasi, type Konteks } from './bot-aksi';
-import { bimbinganBelumDisetujuiSiska, jadwalSiska, presensiSiska, rekapKetidakhadiranSiska, siskaSiap } from './bot-siska';
+import { rencanaMulaiSesi, rencanaSetujuiBimbingan, rencanaSetujuiSidang, rencanaUbahJudul, rencanaUbahPresensi, tanganiKonfirmasi, type Konteks } from './bot-aksi';
+import { bimbinganBelumDisetujuiSiska, jadwalSiska, persetujuanSidangSiska, presensiSiska, rekapKetidakhadiranSiska, siskaSiap } from './bot-siska';
 import { dataKelasSpk, spkSiap } from './spk';
 import { pilihPotongan } from './bot-cari';
 import { biayaUsd, MODEL_BOT_BAWAAN, modelValid, type ModelBot } from './harga-claude';
@@ -34,7 +34,7 @@ export const SUMBER_BOT = [
   { id: 'bimbingan', label: 'Progres bimbingan skripsi' },
   { id: 'spk', label: 'Kelas SPK (idea-spk)' },
   { id: 'bengkel', label: 'Bengkel Pemrograman Mobile' },
-  { id: 'siska', label: 'SISKA (jadwal, presensi, bimbingan; ubah presensi & setujui bimbingan)' },
+  { id: 'siska', label: 'SISKA (jadwal, presensi, bimbingan, persetujuan sidang; ubah presensi, setujui bimbingan & sidang)' },
 ] as const;
 export type SumberBot = (typeof SUMBER_BOT)[number]['id'];
 const SEMUA_SUMBER = SUMBER_BOT.map((x) => x.id);
@@ -281,8 +281,8 @@ Sumber jawabanmu HANYA:
 2. Data riwayat bimbingan skripsi dari tool riwayat_bimbingan (satu mahasiswa, cari berdasarkan nama) dan progres_semua_mahasiswa (rekap semua mahasiswa). Pakai tool ini untuk pertanyaan tentang progres, status bab, versi, tanggal unggah atau tanggapan, jumlah catatan revisi, dan progres perbaikan (syarat disetujui: lebih dari 70% catatan dari 2 bimbingan terakhir diperbaiki di setiap sub bab).
 3. Bila tool data_kelas_spk tersedia: data mata kuliah Sistem Pendukung Keputusan (SPK) dari idea-spk.vercel.app, yaitu ide studi kasus per NIM, 3 algoritma pilihan (SAW, WP, TOPSIS, AHP), dan link tugas Google Docs. Data ini hanya memuat NIM, bukan nama; bila penanya menanyakan miliknya sendiri, minta NIM-nya.
 4. Bila tool Bengkel tersedia (poin_kelas_bengkel, status_mahasiswa_bengkel, aktivitas_kelas_bengkel): data mata kuliah Pemrograman Mobile dari Bengkel Flutter (kresna.blog), yaitu poin harian per kelas, soal yang lulus, kiriman terakhir, dan push yang ditolak. Bila pertanyaan tidak menyebut kelas, kosongkan parameter kelas: tool memakai kelas milik grup ini. Bila tool menjawab perlu_kelas, minta penanya menyebut kelasnya dari daftar pilihan. Sebutkan waktu data (dataPer) di akhir jawaban, dan sampaikan peringatan bila ada.
-5. Bila tool SISKA tersedia (jadwal_mengajar_siska, presensi_siska, rekap_ketidakhadiran_siska, bimbingan_siska): data akademik resmi dari SISKA untuk semua kelas dosen, termasuk SPK dan Pemrograman Mobile, yaitu jadwal mengajar, presensi satu pertemuan, rekap Alfa/Izin, dan bimbingan skripsi/karya terapan yang belum disetujui di SISKA. Kosongkan parameter kelas bila pertanyaan tentang kelas grup ini. Bimbingan di SISKA berbeda dari progres bimbingan di kresna-dosen (riwayat_bimbingan): SISKA mencatat pertemuan bimbingan yang perlu disetujui dosen.
-6. Absensi: bila dosen meminta mengubah presensi (mis. "absen hadir Rifqi", "Budi izin, Ani sakit") pakai rencana_ubah_presensi_siska; bila meminta memulai sesi/kelas pakai rencana_mulai_sesi_siska. Tool ini HANYA membuat rencana; sistem otomatis mengirim ringkasan dan meminta dosen membalas "ya". Jangan pernah mengatakan presensi sudah tersimpan. Bila tool menjawab perlu_perbaikan, sampaikan masalahnya dan minta nama lengkap atau NIM. Bila dosen meminta menyetujui/approve bimbingan di SISKA (mis. "setujui bimbingan Nauval", "approve bimbingan ke-2 dan ke-3 Budi") pakai rencana_setujui_bimbingan_siska; alurnya sama (rencana lalu "ya"), jangan pernah mengatakan bimbingan sudah disetujui. Menutup presensi (mengisi Alfa massal) dan mengakhiri sesi tidak bisa lewat bot; arahkan ke SISKA.
+5. Bila tool SISKA tersedia (jadwal_mengajar_siska, presensi_siska, rekap_ketidakhadiran_siska, bimbingan_siska, persetujuan_sidang_siska): data akademik resmi dari SISKA untuk semua kelas dosen, termasuk SPK dan Pemrograman Mobile, yaitu jadwal mengajar, presensi satu pertemuan, rekap Alfa/Izin, bimbingan skripsi/karya terapan yang belum disetujui di SISKA, dan persetujuan sidang (proposal/skripsi/karya terapan) mahasiswa bimbingan. Kosongkan parameter kelas bila pertanyaan tentang kelas grup ini. Bimbingan di SISKA berbeda dari progres bimbingan di kresna-dosen (riwayat_bimbingan): SISKA mencatat pertemuan bimbingan yang perlu disetujui dosen. Persetujuan sidang berbeda dari persetujuan bimbingan: untuk pertanyaan "siapa yang belum saya ACC sidang", "status persetujuan sidang Budi" pakai persetujuan_sidang_siska.
+6. Absensi: bila dosen meminta mengubah presensi (mis. "absen hadir Rifqi", "Budi izin, Ani sakit") pakai rencana_ubah_presensi_siska; bila meminta memulai sesi/kelas pakai rencana_mulai_sesi_siska. Tool ini HANYA membuat rencana; sistem otomatis mengirim ringkasan dan meminta dosen membalas "ya". Jangan pernah mengatakan presensi sudah tersimpan. Bila tool menjawab perlu_perbaikan, sampaikan masalahnya dan minta nama lengkap atau NIM. Bila dosen meminta menyetujui/approve bimbingan di SISKA (mis. "setujui bimbingan Nauval", "approve bimbingan ke-2 dan ke-3 Budi") pakai rencana_setujui_bimbingan_siska; alurnya sama (rencana lalu "ya"), jangan pernah mengatakan bimbingan sudah disetujui. Bila dosen meminta menyetujui/ACC/approve sidang (mis. "setujui sidang Ken", "ACC sidang proposal Nobel dan Avril", "approve semua sidang yang menunggu") pakai rencana_setujui_sidang_siska (semua=true hanya bila dosen jelas meminta semua); alurnya sama (rencana lalu "ya"), jangan pernah mengatakan sidang sudah disetujui. Menutup presensi (mengisi Alfa massal) dan mengakhiri sesi tidak bisa lewat bot; arahkan ke SISKA.
 7. Judul skripsi: riwayat_bimbingan memuat judul skripsi yang tercatat di kresna-dosen. Bila dosen meminta mengubah/memperbaiki judul skripsi mahasiswa, pakai rencana_ubah_judul_skripsi dengan judul baru persis seperti ditulis dosen; alurnya sama (rencana lalu "ya"), jangan pernah mengatakan judul sudah diubah. Judul di SISKA tidak bisa diubah lewat bot.
 
 Aturan:
@@ -391,6 +391,19 @@ const TOOLS_BENGKEL: Anthropic.Beta.BetaTool[] = [
 
 const TOOLS_SISKA: Anthropic.Beta.BetaTool[] = [
   {
+    name: 'persetujuan_sidang_siska',
+    description:
+      'Persetujuan sidang di SISKA (Tugas Akhir → Persetujuan Sidang) untuk mahasiswa bimbingan dosen. Tanpa mahasiswa: checklist mahasiswa (nama, NIM, jenis, fase Proposal/Skripsi/Karya Terapan, judul, persetujuan dosen Disetujui/Menunggu, status keseluruhan Lengkap/Belum Lengkap); bawaan yang belum disetujui dosen. Dengan mahasiswa: siapa saja (Pembimbing I, Pembimbing II, Kaprodi) yang sudah menyetujui sidang proposal dan sidang akhir.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        mahasiswa: { type: 'string', description: 'Opsional, nama (boleh sebagian) atau NIM.' },
+        status: { type: 'string', enum: ['belum', 'disetujui', 'semua'], description: 'Opsional untuk daftar; bawaan belum (belum disetujui dosen).' },
+        jenis: { type: 'string', enum: ['karya_terapan', 'skripsi'], description: 'Opsional; kosongkan untuk keduanya.' },
+      },
+    },
+  },
+  {
     name: 'jadwal_mengajar_siska',
     description: 'Jadwal mengajar dosen dari SISKA pada satu tanggal: mata kuliah, kelas, pertemuan ke-, jam, ruang, dan status (TERJADWAL, MULAI, SELESAI).',
     input_schema: { type: 'object', properties: { tanggal: { type: 'string', description: 'Opsional, YYYY-MM-DD. Kosong = hari ini (WITA).' } } },
@@ -434,6 +447,18 @@ const TOOLS_SISKA: Anthropic.Beta.BetaTool[] = [
 ];
 
 const TOOLS_AKSI: Anthropic.Beta.BetaTool[] = [
+  {
+    name: 'rencana_setujui_sidang_siska',
+    description:
+      'Membuat RENCANA menyetujui sidang (Tugas Akhir → Persetujuan Sidang di SISKA) untuk mahasiswa bimbingan yang disebut dosen, atau semua yang masih menunggu persetujuan dosen. Belum mengubah apa pun; dosen harus membalas "ya".',
+    input_schema: {
+      type: 'object',
+      properties: {
+        mahasiswa: { type: 'array', items: { type: 'string' }, description: 'Nama (boleh sebagian) atau NIM, satu entri per mahasiswa, persis seperti disebut dosen.' },
+        semua: { type: 'boolean', description: 'true hanya bila dosen jelas meminta menyetujui SEMUA yang menunggu.' },
+      },
+    },
+  },
   {
     name: 'rencana_ubah_presensi_siska',
     description:
@@ -564,6 +589,18 @@ async function jalankanTool(nama: string, input: unknown, ctx: Konteks, diizinka
     if (nama === 'rencana_mulai_sesi_siska') return rencanaMulaiSesi({ kelas: teks(f.kelas), pertemuanKe: angka(f.pertemuan_ke) }, ctx);
     const jenisKarya = f.jenis === 'skripsi' || f.jenis === 'karya_terapan' ? f.jenis : undefined;
     if (nama === 'bimbingan_siska') return bimbinganBelumDisetujuiSiska({ mahasiswa: teks(f.mahasiswa), jenis: jenisKarya });
+    if (nama === 'persetujuan_sidang_siska') {
+      const status = f.status === 'belum' || f.status === 'disetujui' || f.status === 'semua' ? f.status : undefined;
+      return persetujuanSidangSiska({ mahasiswa: teks(f.mahasiswa), status, jenis: jenisKarya });
+    }
+    if (nama === 'rencana_setujui_sidang_siska') {
+      const mhs = Array.isArray(f.mahasiswa)
+        ? f.mahasiswa.filter((x): x is string => typeof x === 'string' && !!x.trim()).map((x) => x.trim().slice(0, 100))
+        : typeof f.mahasiswa === 'string' && f.mahasiswa.trim()
+          ? [f.mahasiswa.trim().slice(0, 100)]
+          : [];
+      return rencanaSetujuiSidang({ mahasiswa: mhs, semua: f.semua === true }, ctx);
+    }
     if (nama === 'rencana_setujui_bimbingan_siska') {
       const ke = Array.isArray(f.bimbingan_ke) ? f.bimbingan_ke.filter((x): x is number => typeof x === 'number' && Number.isInteger(x)) : undefined;
       return rencanaSetujuiBimbingan({ mahasiswa: teks(f.mahasiswa) ?? '', jenis: jenisKarya, bimbinganKe: ke }, ctx);
