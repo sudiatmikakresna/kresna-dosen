@@ -4,7 +4,18 @@ import { and, asc, desc, eq, gt, inArray, sql } from 'drizzle-orm';
 import { botDokumen, botTanya, db, pengaturan, waGrup } from '@/db';
 import { progresSemuaMahasiswa, riwayatBimbingan } from './bot-riwayat';
 import { aktivitasKelasBengkel, bengkelSiap, poinKelasBengkel, statusMahasiswaBengkel } from './bengkel';
-import { rencanaMulaiSesi, rencanaSetujuiBimbingan, rencanaSetujuiSidang, rencanaUbahJudul, rencanaUbahPresensi, tanganiKonfirmasi, type Konteks } from './bot-aksi';
+import {
+  rencanaKeputusanBerkas,
+  rencanaMulaiSesi,
+  rencanaSetujuiBimbingan,
+  rencanaSetujuiSidang,
+  rencanaUbahJudul,
+  rencanaUbahPresensi,
+  simpanRencanaGabungan,
+  tanganiKonfirmasi,
+  type Konteks,
+  type Langkah,
+} from './bot-aksi';
 import { bimbinganBelumDisetujuiSiska, jadwalSiska, persetujuanSidangSiska, presensiSiska, rekapKetidakhadiranSiska, siskaSiap } from './bot-siska';
 import { dataKelasSpk, spkSiap } from './spk';
 import { pilihPotongan } from './bot-cari';
@@ -284,6 +295,8 @@ Sumber jawabanmu HANYA:
 5. Bila tool SISKA tersedia (jadwal_mengajar_siska, presensi_siska, rekap_ketidakhadiran_siska, bimbingan_siska, persetujuan_sidang_siska): data akademik resmi dari SISKA untuk semua kelas dosen, termasuk SPK dan Pemrograman Mobile, yaitu jadwal mengajar, presensi satu pertemuan, rekap Alfa/Izin, bimbingan skripsi/karya terapan yang belum disetujui di SISKA, dan persetujuan sidang (proposal/skripsi/karya terapan) mahasiswa bimbingan. Kosongkan parameter kelas bila pertanyaan tentang kelas grup ini. Bimbingan di SISKA berbeda dari progres bimbingan di kresna-dosen (riwayat_bimbingan): SISKA mencatat pertemuan bimbingan yang perlu disetujui dosen. Persetujuan sidang berbeda dari persetujuan bimbingan: untuk pertanyaan "siapa yang belum saya ACC sidang", "status persetujuan sidang Budi" pakai persetujuan_sidang_siska.
 6. Absensi: bila dosen meminta mengubah presensi (mis. "absen hadir Rifqi", "Budi izin, Ani sakit") pakai rencana_ubah_presensi_siska; bila meminta memulai sesi/kelas pakai rencana_mulai_sesi_siska. Tool ini HANYA membuat rencana; sistem otomatis mengirim ringkasan dan meminta dosen membalas "ya". Jangan pernah mengatakan presensi sudah tersimpan. Bila tool menjawab perlu_perbaikan, sampaikan masalahnya dan minta nama lengkap atau NIM. Bila dosen meminta menyetujui/approve bimbingan di SISKA (mis. "setujui bimbingan Nauval", "approve bimbingan ke-2 dan ke-3 Budi") pakai rencana_setujui_bimbingan_siska; alurnya sama (rencana lalu "ya"), jangan pernah mengatakan bimbingan sudah disetujui. Bila dosen meminta menyetujui/ACC/approve sidang (mis. "setujui sidang Ken", "ACC sidang proposal Nobel dan Avril", "approve semua sidang yang menunggu") pakai rencana_setujui_sidang_siska (semua=true hanya bila dosen jelas meminta semua); alurnya sama (rencana lalu "ya"), jangan pernah mengatakan sidang sudah disetujui. Menutup presensi (mengisi Alfa massal) dan mengakhiri sesi tidak bisa lewat bot; arahkan ke SISKA.
 7. Judul skripsi: riwayat_bimbingan memuat judul skripsi yang tercatat di kresna-dosen. Bila dosen meminta mengubah/memperbaiki judul skripsi mahasiswa, pakai rencana_ubah_judul_skripsi dengan judul baru persis seperti ditulis dosen; alurnya sama (rencana lalu "ya"), jangan pernah mengatakan judul sudah diubah. Judul di SISKA tidak bisa diubah lewat bot.
+8. Keputusan berkas di kresna-dosen: bila dosen meminta mengirim revisi/catatan ke mahasiswa (mis. "kirim revisi Bab 2 Budi") pakai rencana_kirim_revisi; bila meminta menyetujui/ACC/approve bab (mis. "setujui Bab 3 Ani", "ACC bab 1 Nobel") pakai rencana_setujui_bab. Isi bab hanya bila disebut dosen. Alurnya sama (rencana lalu "ya"); jangan pernah mengatakan revisi sudah terkirim atau bab sudah disetujui. Ini berbeda dari persetujuan bimbingan dan sidang di SISKA.
+9. Beberapa aksi sekaligus: bila satu pesan berisi beberapa permintaan aksi (mis. "absen hadir Budi, ACC sidang Ken, dan setujui Bab 2 Ani"), panggil SEMUA tool rencana_* yang diperlukan (boleh sekaligus dalam satu giliran). Setiap tool hanya mencatat satu langkah; sistem menggabungkan semua langkah menjadi SATU rencana dan meminta dosen membalas "ya" sekali. Setelah semua langkah dicatat, balas singkat HANYA tentang permintaan yang tidak bisa dibuat langkahnya (perlu_perbaikan, tidak ditemukan, dsb.) beserta alasannya; bila semuanya berhasil dicatat, balas persis: OK
 
 Aturan:
 - Jangan memakai pengetahuan umum, jangan menebak, dan jangan menambah informasi yang tidak ada di dokumen atau data tool.
@@ -333,6 +346,34 @@ const TOOLS_AKSI_BIMBINGAN: Anthropic.Beta.BetaTool[] = [
         judul: { type: 'string', description: 'Judul baru persis seperti ditulis dosen, tanpa tanda kutip.' },
       },
       required: ['mahasiswa', 'judul'],
+    },
+  },
+  {
+    name: 'rencana_kirim_revisi',
+    description:
+      'Membuat RENCANA mengirim catatan revisi ke mahasiswa di kresna-dosen dengan keputusan Perlu revisi (sama dengan tombol Kirim di web): semua catatan draf pada berkas yang menunggu keputusan ikut terkirim dan mahasiswa diberi tahu. Belum mengubah apa pun; dosen harus membalas "ya".',
+    input_schema: {
+      type: 'object',
+      properties: {
+        mahasiswa: { type: 'string', description: 'Nama (boleh sebagian) atau NIM persis seperti disebut dosen.' },
+        bab: { type: 'string', enum: ['bab1', 'bab2', 'bab3', 'bab4', 'draf_lengkap', 'lainnya'], description: 'Opsional; isi bila dosen menyebut babnya.' },
+        ringkasan: { type: 'string', description: 'Opsional: pesan/ringkasan umum untuk mahasiswa persis seperti ditulis dosen.' },
+      },
+      required: ['mahasiswa'],
+    },
+  },
+  {
+    name: 'rencana_setujui_bab',
+    description:
+      'Membuat RENCANA menyetujui bab/berkas mahasiswa di kresna-dosen (sama dengan tombol Setujui di web): keputusan Disetujui, catatan draf ikut terkirim, mahasiswa diberi tahu, dan hasilnya diumumkan di grup laporan WhatsApp. Bila aturan approve belum terpenuhi, ringkasan rencana memberi peringatan. Belum mengubah apa pun; dosen harus membalas "ya".',
+    input_schema: {
+      type: 'object',
+      properties: {
+        mahasiswa: { type: 'string', description: 'Nama (boleh sebagian) atau NIM persis seperti disebut dosen.' },
+        bab: { type: 'string', enum: ['bab1', 'bab2', 'bab3', 'bab4', 'draf_lengkap', 'lainnya'], description: 'Opsional; isi bila dosen menyebut babnya.' },
+        ringkasan: { type: 'string', description: 'Opsional: pesan untuk mahasiswa persis seperti ditulis dosen.' },
+      },
+      required: ['mahasiswa'],
     },
   },
 ];
@@ -513,7 +554,7 @@ const TOOLS_AKSI: Anthropic.Beta.BetaTool[] = [
   },
 ];
 
-const MAKS_PUTARAN = 4;
+const MAKS_PUTARAN = 8;
 
 // Memory percakapan (short-term, sliding window): tanya-jawab terakhir dari penanya yang sama di grup yang sama.
 const MAKS_RIWAYAT = 20;
@@ -574,6 +615,18 @@ async function jalankanTool(nama: string, input: unknown, ctx: Konteks, diizinka
   if (nama === 'rencana_ubah_judul_skripsi') {
     const f = (input ?? {}) as { mahasiswa?: unknown; judul?: unknown };
     return rencanaUbahJudul({ mahasiswa: typeof f.mahasiswa === 'string' ? f.mahasiswa.slice(0, 100) : '', judul: typeof f.judul === 'string' ? f.judul.slice(0, 600) : '' }, ctx);
+  }
+  if (nama === 'rencana_kirim_revisi' || nama === 'rencana_setujui_bab') {
+    const f = (input ?? {}) as { mahasiswa?: unknown; bab?: unknown; ringkasan?: unknown };
+    return rencanaKeputusanBerkas(
+      {
+        mahasiswa: typeof f.mahasiswa === 'string' ? f.mahasiswa.slice(0, 100) : '',
+        bab: typeof f.bab === 'string' ? f.bab : undefined,
+        ringkasan: typeof f.ringkasan === 'string' ? f.ringkasan.slice(0, 1500) : undefined,
+        keputusan: nama === 'rencana_setujui_bab' ? 'disetujui' : 'perlu_revisi',
+      },
+      ctx,
+    );
   }
   if (nama === 'data_kelas_spk' && spkSiap()) {
     const f = (input ?? {}) as { nim?: unknown; algoritma?: unknown };
@@ -707,6 +760,8 @@ async function tanyaClaude(pertanyaan: string, nama: string | null, dokumen: { j
   const sumberData = new Set<string>();
 
   let res: Anthropic.Beta.BetaMessage | null = null;
+  // Langkah rencana dari semua tool rencana_* di pesan ini, urut sesuai urutan panggilan (bukan urutan selesai).
+  const langkah: Langkah[] = [];
   for (let putaran = 0; putaran < MAKS_PUTARAN; putaran++) {
     res = await client.beta.messages.create({
       model,
@@ -725,9 +780,9 @@ async function tanyaClaude(pertanyaan: string, nama: string | null, dokumen: { j
     if (res.stop_reason !== 'tool_use') break;
 
     const panggilan = res.content.filter((c): c is Anthropic.Beta.BetaToolUseBlock => c.type === 'tool_use');
-    let rencana: string | null = null;
+    const langkahPutaran: (Langkah | null)[] = panggilan.map(() => null);
     const hasil = await Promise.all(
-      panggilan.map(async (c): Promise<Anthropic.Beta.BetaToolResultBlockParam> => {
+      panggilan.map(async (c, i): Promise<Anthropic.Beta.BetaToolResultBlockParam> => {
         try {
           if (diizinkan.has(c.name)) sumberData.add(
             c.name === 'data_kelas_spk'
@@ -739,7 +794,12 @@ async function tanyaClaude(pertanyaan: string, nama: string | null, dokumen: { j
                   : 'data bimbingan kresna-dosen',
           );
           const keluaran = await jalankanTool(c.name, c.input, ctx, diizinkan);
-          if ((keluaran as { hasil?: string }).hasil === 'rencana_dibuat') rencana = (keluaran as { pesanKonfirmasi: string }).pesanKonfirmasi;
+          if ((keluaran as { hasil?: string }).hasil === 'langkah_dicatat') {
+            const k = keluaran as unknown as { langkah: Langkah; ringkasan: string; pesan: string };
+            langkahPutaran[i] = k.langkah;
+            // Claude hanya melihat ringkasan langkah, bukan data mentah yang akan dijalankan.
+            return { type: 'tool_result', tool_use_id: c.id, content: JSON.stringify({ hasil: 'langkah_dicatat', ringkasan: k.ringkasan, pesan: k.pesan }) };
+          }
           return { type: 'tool_result', tool_use_id: c.id, content: JSON.stringify(keluaran) };
         } catch (e) {
           console.error('Tool bot WhatsApp gagal', c.name, e);
@@ -747,10 +807,30 @@ async function tanyaClaude(pertanyaan: string, nama: string | null, dokumen: { j
         }
       }),
     );
-    // Rencana absensi: yang dikirim ke dosen adalah ringkasan dari kode, bukan kata-kata Claude.
-    if (rencana) return { jawaban: rencana, status: 'dijawab', sumber: ['SISKA'], pakai };
+    for (const l of langkahPutaran) if (l) langkah.push(l);
     // Konten asisten (termasuk blok thinking) dikirim balik apa adanya.
     messages.push({ role: 'assistant', content: res.content }, { role: 'user', content: hasil });
+  }
+
+  // Rencana: yang dikirim ke dosen adalah ringkasan dari kode (satu rencana untuk semua langkah), bukan kata-kata
+  // Claude. Catatan Claude hanya ditambahkan untuk permintaan yang tidak bisa dibuat langkahnya.
+  if (langkah.length) {
+    const konfirmasi = await simpanRencanaGabungan(ctx, langkah);
+    const catatanClaude =
+      res && res.stop_reason !== 'tool_use'
+        ? res.content
+            .filter((c): c is Anthropic.Beta.BetaTextBlock => c.type === 'text')
+            .map((c) => c.text)
+            .join('')
+            .trim()
+        : '';
+    const tambahan =
+      res?.stop_reason === 'tool_use'
+        ? '⚠️ Permintaannya terlalu panjang; mungkin ada aksi yang belum masuk rencana. Kirim sisanya di pesan terpisah.'
+        : catatanClaude && !/^ok\.?$/i.test(catatanClaude) && !catatanClaude.includes(PENANDA_LUAR)
+          ? `ℹ️ ${catatanClaude.slice(0, 1500)}`
+          : '';
+    return { jawaban: tambahan ? `${konfirmasi}\n\n${tambahan}` : konfirmasi, status: 'dijawab', sumber: [...sumberData], pakai };
   }
 
   if (!res || res.stop_reason === 'refusal' || res.stop_reason === 'tool_use') {
@@ -771,12 +851,13 @@ async function tanyaClaude(pertanyaan: string, nama: string | null, dokumen: { j
 
 /**
  * Jawab satu pertanyaan tanpa WhatsApp (halaman Uji bot). Memakai sumber grup `chatId` (atau semua sumber bila null),
- * model dari pengaturan, tanpa riwayat, dan tanpa izin mengubah presensi.
+ * model dari pengaturan, tanpa riwayat. Aksi hanya dipratinjau: rencana ditampilkan tetapi tidak disimpan atau dijalankan.
  */
 export async function jawabUji(pertanyaan: string, chatId: string | null) {
   const [grup] = chatId ? await db().select({ botSumber: waGrup.botSumber }).from(waGrup).where(eq(waGrup.chatId, chatId)).limit(1) : [];
   const { model } = await pengaturanBot();
-  const ctx: Konteks = { chatId: chatId ?? 'uji', pengirimId: null, bolehMengubah: false };
+  // Pratinjau: rencana aksi disusun dan ditampilkan, tetapi tidak pernah disimpan atau dijalankan.
+  const ctx: Konteks = { chatId: chatId ?? 'uji', pengirimId: null, bolehMengubah: false, pratinjau: true };
   const h = await tanyaClaude(pertanyaan, 'Penguji', await dokumenAktif(), ctx, {
     riwayat: [],
     dibalas: null,
