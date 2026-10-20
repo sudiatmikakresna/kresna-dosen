@@ -35,7 +35,7 @@ export default async function UjiBotPage({ searchParams }: { searchParams: Promi
       <h1 className="h3 mb-1">Uji bot tanpa WhatsApp</h1>
       <p className="text-body-secondary small mb-4">
         Kasus uji dijalankan ke Claude sungguhan dengan dokumen, data, model, dan sumber grup yang sama seperti di WhatsApp, tetapi tanpa
-        mengirim pesan dan tanpa bisa mengubah presensi. Jalankan setelah mengubah dokumen, model, atau sumber grup untuk memastikan bot
+        mengirim pesan. Permintaan aksi (presensi, persetujuan, kirim revisi, setujui bab) hanya ditampilkan sebagai pratinjau rencana dan tidak pernah dijalankan. Jalankan setelah mengubah dokumen, model, atau sumber grup untuk memastikan bot
         tetap menolak pertanyaan di luar topik dan tetap menjawab yang seharusnya.
       </p>
       {ok && <div className="alert alert-success">{ok}</div>}
