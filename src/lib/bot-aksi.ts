@@ -1,6 +1,7 @@
 import 'server-only';
 import { and, desc, eq, sql } from 'drizzle-orm';
-import { botAksi, db } from '@/db';
+import { botAksi, db, users } from '@/db';
+import { catatAktivitas } from './service';
 import { cariKelas, perluKelas } from './bot-siska';
 import { getKelas, mulaiSesi, type Pertemuan } from './siska/kelas';
 import { getPresensi, ubahPresensi, type Peserta } from './siska/presensi';
@@ -31,6 +32,7 @@ type DataUbah = {
   perubahan: { nim: string; nama: string; status: Kode; keterangan?: string }[];
 };
 type DataMulai = { kelasId: number; pertemuanId: number; kelas: string; pertemuanKe: number };
+type DataJudul = { userId: number; nim: string; nama: string; judulLama: string | null; judulBaru: string };
 type DataSetuju = {
   jenis: JenisKarya;
   idKaryaAkhir: number;
@@ -59,7 +61,12 @@ export function cocokPeserta<T extends Pick<Peserta, 'nim' | 'nama'>>(cari: stri
   });
 }
 
-async function simpanRencana(ctx: Konteks, jenis: 'ubah_presensi' | 'mulai_sesi' | 'setujui_bimbingan', data: DataUbah | DataMulai | DataSetuju, ringkasan: string) {
+async function simpanRencana(
+  ctx: Konteks,
+  jenis: 'ubah_presensi' | 'mulai_sesi' | 'setujui_bimbingan' | 'ubah_judul',
+  data: DataUbah | DataMulai | DataSetuju | DataJudul,
+  ringkasan: string,
+) {
   // Satu rencana aktif per dosen per grup: rencana lama yang belum dikonfirmasi diganti.
   await db()
     .update(botAksi)
@@ -83,7 +90,7 @@ async function simpanRencana(ctx: Konteks, jenis: 'ubah_presensi' | 'mulai_sesi'
 
 function tolakBila(ctx: Konteks) {
   if (!ctx.bolehMengubah) {
-    return { hasil: 'error', pesan: 'Absensi lewat bot hanya aktif bila daftar nomor yang diizinkan di halaman bot diisi.' };
+    return { hasil: 'error', pesan: 'Mengubah data lewat bot hanya aktif bila daftar nomor yang diizinkan di halaman bot diisi.' };
   }
   if (!ctx.pengirimId) return { hasil: 'error', pesan: 'Pengirim tidak dikenali, rencana tidak bisa dibuat.' };
   return null;
@@ -234,6 +241,38 @@ export async function rencanaSetujuiBimbingan(f: { mahasiswa: string; jenis?: Je
 }
 
 /**
+ * Tool: rencana mengubah judul skripsi mahasiswa di kresna-dosen (users.judul_skripsi). Judul di SISKA tidak ikut berubah.
+ */
+export async function rencanaUbahJudul(f: { mahasiswa: string; judul: string }, ctx: Konteks) {
+  const tolak = tolakBila(ctx);
+  if (tolak) return tolak;
+  const judul = f.judul.replace(/\s+/g, ' ').replace(/^["“”']+|["“”']+$/g, '').trim();
+  if (judul.length < 10 || judul.length > 500) return { hasil: 'perlu_perbaikan', pesan: 'Judul harus 10–500 karakter.' };
+  const semua = await db()
+    .select({ id: users.id, nim: users.nim, nama: users.nama, judul: users.judulSkripsi })
+    .from(users)
+    .where(eq(users.role, 'mahasiswa'));
+  const cocok = cocokPeserta(f.mahasiswa, semua.map((m) => ({ ...m, nim: m.nim ?? '' })));
+  if (cocok.length !== 1) {
+    return {
+      hasil: 'perlu_perbaikan',
+      pesan: cocok.length === 0 ? `Tidak ada mahasiswa bimbingan yang cocok dengan "${f.mahasiswa}".` : `Ada ${cocok.length} mahasiswa yang cocok; minta nama lengkap atau NIM.`,
+      kandidat: cocok.slice(0, 10).map((m) => `${m.nama} (${m.nim})`),
+    };
+  }
+  const m = cocok[0];
+  if ((m.judul ?? '').trim() === judul) return { hasil: 'perlu_perbaikan', pesan: `Judul ${m.nama} sudah persis seperti itu; tidak ada yang perlu diubah.` };
+  const ringkasan = [
+    '📝 *Rencana ubah judul skripsi (kresna-dosen)*',
+    `${m.nama} (${m.nim})`,
+    `Judul lama: ${m.judul ? `_${m.judul}_` : '(belum diisi)'}`,
+    `Judul baru: *${judul}*`,
+    'Judul di SISKA tidak ikut berubah.',
+  ].join('\n');
+  return simpanRencana(ctx, 'ubah_judul', { userId: m.id, nim: m.nim, nama: m.nama, judulLama: m.judul, judulBaru: judul }, ringkasan);
+}
+
+/**
  * Balasan "ya" / "batal" dari dosen untuk rencana yang menunggu. Mengembalikan teks balasan, atau null bila
  * pesan bukan konfirmasi (lalu diproses Claude seperti biasa). Dijalankan tanpa Claude.
  */
@@ -282,6 +321,12 @@ export async function tanganiKonfirmasi(teks: string, ctx: Konteks): Promise<str
         ...u.ditolak.map((x) => `⚠️ ${x.nim}: ${x.alasan}`),
         `Rekap sekarang: ${n('H')} Hadir, ${n('S')} Sakit, ${n('I')} Izin, ${n('A')} Alfa, ${n(null)} belum diisi.`,
       ].join('\n');
+    } else if (r.jenis === 'ubah_judul') {
+      const d = r.data as DataJudul;
+      await db().update(users).set({ judulSkripsi: d.judulBaru }).where(eq(users.id, d.userId));
+      await catatAktivitas(d.userId, `Judul skripsi diubah dosen: ${d.judulBaru}`);
+      const [cek] = await db().select({ judul: users.judulSkripsi }).from(users).where(eq(users.id, d.userId)).limit(1);
+      hasil = cek?.judul === d.judulBaru ? `✅ Judul skripsi ${d.nama} di kresna-dosen sekarang:\n*${d.judulBaru}*` : `⚠️ Judul ${d.nama} belum berubah. Cek di panel dosen.`;
     } else if (r.jenis === 'setujui_bimbingan') {
       const d = r.data as DataSetuju;
       const h = await setujuiBimbingan(d.jenis, d.idKaryaAkhir, d.bimbingan.map((b) => b.id));

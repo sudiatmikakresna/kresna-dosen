@@ -12,6 +12,7 @@ import { dataKelasSpk, spkSiap } from '@/lib/spk';
 import { AMBANG_PERSEN, rekapPerbaikan, rekapUntukAgent, simpanPenilaian } from '@/lib/perbaikan';
 import {
   aktivitasMahasiswa,
+  catatAktivitas,
   antrianReview,
   berkasMahasiswa,
   daftarMahasiswa,
@@ -304,6 +305,25 @@ const handler = createMcpHandler(
         } catch (e) {
           return gagal(`Gagal membaca database idea-spk: ${(e as Error).message}`);
         }
+      },
+    );
+
+    server.registerTool(
+      'ubah_judul_skripsi',
+      {
+        title: 'Ubah judul skripsi',
+        description:
+          'Mengganti judul skripsi mahasiswa di kresna-dosen (judul yang tampil di web bimbingan dan dipakai review). Lakukan hanya bila dosen ' +
+          'meminta; tampilkan judul lama dan baru lalu minta konfirmasi. Judul di SISKA tidak ikut berubah.',
+        inputSchema: { mahasiswa_id: z.number().int(), judul: z.string().trim().min(10).max(500) },
+      },
+      async ({ mahasiswa_id, judul }) => {
+        const [m] = await db().select().from(users).where(eq(users.id, mahasiswa_id)).limit(1);
+        if (!m || m.role !== 'mahasiswa') return gagal(`Mahasiswa ${mahasiswa_id} tidak ditemukan.`);
+        const baru = judul.replace(/\s+/g, ' ');
+        await db().update(users).set({ judulSkripsi: baru }).where(eq(users.id, m.id));
+        await catatAktivitas(m.id, `Judul skripsi diubah dosen: ${baru}`);
+        return json({ mahasiswa: m.nama, nim: m.nim, judul_lama: m.judulSkripsi, judul_baru: baru });
       },
     );
 

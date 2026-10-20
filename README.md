@@ -252,6 +252,10 @@ pesan grup ──webhook WAHA (HMAC)──► bot di-mention / pesan bot dibalas
   Claude. Nama yang ambigu atau tidak ditemukan membuat rencana tidak dibuat. Hanya aktif bila daftar nomor yang
   diizinkan diisi, dan konfirmasi harus dari nomor yang sama. Menutup presensi (Alfa massal) dan mengakhiri sesi
   sengaja tidak tersedia lewat bot.
+- Judul skripsi lewat bot: `riwayat_bimbingan` memuat judul yang tercatat di kresna-dosen, dan
+  `rencana_ubah_judul_skripsi` (sumber "bimbingan") membuat rencana judul lama → baru yang dijalankan setelah dosen
+  membalas "ya" (users.judul_skripsi, tercatat di riwayat aktivitas). Judul di SISKA tidak ikut berubah. Di MCP
+  Bimbingan tersedia tool `ubah_judul_skripsi`.
 - Bimbingan skripsi/karya terapan di SISKA lewat bot: `bimbingan_siska` (baca: rekap mahasiswa yang punya bimbingan
   belum disetujui, atau daftar bimbingan satu mahasiswa) dan `rencana_setujui_bimbingan_siska` (aksi). Alurnya sama
   dengan absensi: bot mengirim rencana (mahasiswa, bimbingan ke-, tanggal, topik), lalu dosen membalas "ya" dalam

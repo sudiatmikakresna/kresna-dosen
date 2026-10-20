@@ -7,7 +7,7 @@ import { tahapDari } from './service';
 
 /**
  * Data riwayat bimbingan untuk bot tanya-jawab WhatsApp. Sengaja ringkas, sama seperti laporan grup:
- * nama, bab, versi, tanggal, keputusan, jumlah catatan, dan progres perbaikan. Isi catatan revisi, NIM,
+ * nama, judul skripsi, bab, versi, tanggal, keputusan, jumlah catatan, dan progres perbaikan. Isi catatan revisi, NIM,
  * dan isi berkas tidak pernah dikembalikan, jadi juga tidak bisa dikutip bot di grup.
  */
 
@@ -28,7 +28,7 @@ async function mahasiswaCocok(nama: string) {
     .slice(0, 5);
   if (kata.length === 0) return [];
   return db()
-    .select({ id: users.id, nama: users.nama })
+    .select({ id: users.id, nama: users.nama, judulSkripsi: users.judulSkripsi })
     .from(users)
     .where(and(eq(users.role, 'mahasiswa'), ...kata.map((k) => ilike(users.nama, `%${k}%`))))
     .orderBy(asc(users.nama))
@@ -101,6 +101,7 @@ export async function riwayatBimbingan(nama: string) {
       const terakhir = milik.reduce<Date | null>((t, b) => (!t || b.createdAt > t ? b.createdAt : t), null);
       return {
         nama: m.nama,
+        judulSkripsi: m.judulSkripsi ?? '(belum diisi)',
         unggahanTerakhir: terakhir ? tanggal(terakhir) : null,
         tahap,
         draf_lengkap_dan_lainnya: lain.length ? lain.map((b) => ({ jenis: labelJenisPendek(b.jenis), versi: b.versi, diunggah: tanggal(b.createdAt), status: statusVersi(b) })) : [],
@@ -112,7 +113,7 @@ export async function riwayatBimbingan(nama: string) {
 
 /** Ringkasan progres semua mahasiswa bimbingan: status terakhir Bab 1–4 dan tanggal unggahan terakhir. */
 export async function progresSemuaMahasiswa() {
-  const mhs = await db().select({ id: users.id, nama: users.nama }).from(users).where(eq(users.role, 'mahasiswa')).orderBy(asc(users.nama));
+  const mhs = await db().select({ id: users.id, nama: users.nama, judulSkripsi: users.judulSkripsi }).from(users).where(eq(users.role, 'mahasiswa')).orderBy(asc(users.nama));
   const semua = await db()
     .select({ mahasiswaId: berkas.mahasiswaId, jenis: berkas.jenis, versi: berkas.versi, status: berkas.status, createdAt: berkas.createdAt })
     .from(berkas)
@@ -123,6 +124,7 @@ export async function progresSemuaMahasiswa() {
       const milik = semua.filter((b) => b.mahasiswaId === m.id);
       return {
         nama: m.nama,
+        judulSkripsi: m.judulSkripsi ?? '(belum diisi)',
         unggahanTerakhir: milik[0] ? tanggal(milik[0].createdAt) : null,
         tahap: Object.fromEntries(
           tahapDari(milik).map((t) => {

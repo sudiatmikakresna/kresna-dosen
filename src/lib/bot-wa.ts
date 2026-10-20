@@ -4,7 +4,7 @@ import { and, asc, desc, eq, gt, inArray, sql } from 'drizzle-orm';
 import { botDokumen, botTanya, db, pengaturan, waGrup } from '@/db';
 import { progresSemuaMahasiswa, riwayatBimbingan } from './bot-riwayat';
 import { aktivitasKelasBengkel, bengkelSiap, poinKelasBengkel, statusMahasiswaBengkel } from './bengkel';
-import { rencanaMulaiSesi, rencanaSetujuiBimbingan, rencanaUbahPresensi, tanganiKonfirmasi, type Konteks } from './bot-aksi';
+import { rencanaMulaiSesi, rencanaSetujuiBimbingan, rencanaUbahJudul, rencanaUbahPresensi, tanganiKonfirmasi, type Konteks } from './bot-aksi';
 import { bimbinganBelumDisetujuiSiska, jadwalSiska, presensiSiska, rekapKetidakhadiranSiska, siskaSiap } from './bot-siska';
 import { dataKelasSpk, spkSiap } from './spk';
 import { pilihPotongan } from './bot-cari';
@@ -283,6 +283,7 @@ Sumber jawabanmu HANYA:
 4. Bila tool Bengkel tersedia (poin_kelas_bengkel, status_mahasiswa_bengkel, aktivitas_kelas_bengkel): data mata kuliah Pemrograman Mobile dari Bengkel Flutter (kresna.blog), yaitu poin harian per kelas, soal yang lulus, kiriman terakhir, dan push yang ditolak. Bila pertanyaan tidak menyebut kelas, kosongkan parameter kelas: tool memakai kelas milik grup ini. Bila tool menjawab perlu_kelas, minta penanya menyebut kelasnya dari daftar pilihan. Sebutkan waktu data (dataPer) di akhir jawaban, dan sampaikan peringatan bila ada.
 5. Bila tool SISKA tersedia (jadwal_mengajar_siska, presensi_siska, rekap_ketidakhadiran_siska, bimbingan_siska): data akademik resmi dari SISKA untuk semua kelas dosen, termasuk SPK dan Pemrograman Mobile, yaitu jadwal mengajar, presensi satu pertemuan, rekap Alfa/Izin, dan bimbingan skripsi/karya terapan yang belum disetujui di SISKA. Kosongkan parameter kelas bila pertanyaan tentang kelas grup ini. Bimbingan di SISKA berbeda dari progres bimbingan di kresna-dosen (riwayat_bimbingan): SISKA mencatat pertemuan bimbingan yang perlu disetujui dosen.
 6. Absensi: bila dosen meminta mengubah presensi (mis. "absen hadir Rifqi", "Budi izin, Ani sakit") pakai rencana_ubah_presensi_siska; bila meminta memulai sesi/kelas pakai rencana_mulai_sesi_siska. Tool ini HANYA membuat rencana; sistem otomatis mengirim ringkasan dan meminta dosen membalas "ya". Jangan pernah mengatakan presensi sudah tersimpan. Bila tool menjawab perlu_perbaikan, sampaikan masalahnya dan minta nama lengkap atau NIM. Bila dosen meminta menyetujui/approve bimbingan di SISKA (mis. "setujui bimbingan Nauval", "approve bimbingan ke-2 dan ke-3 Budi") pakai rencana_setujui_bimbingan_siska; alurnya sama (rencana lalu "ya"), jangan pernah mengatakan bimbingan sudah disetujui. Menutup presensi (mengisi Alfa massal) dan mengakhiri sesi tidak bisa lewat bot; arahkan ke SISKA.
+7. Judul skripsi: riwayat_bimbingan memuat judul skripsi yang tercatat di kresna-dosen. Bila dosen meminta mengubah/memperbaiki judul skripsi mahasiswa, pakai rencana_ubah_judul_skripsi dengan judul baru persis seperti ditulis dosen; alurnya sama (rencana lalu "ya"), jangan pernah mengatakan judul sudah diubah. Judul di SISKA tidak bisa diubah lewat bot.
 
 Aturan:
 - Jangan memakai pengetahuan umum, jangan menebak, dan jangan menambah informasi yang tidak ada di dokumen atau data tool.
@@ -316,6 +317,23 @@ const TOOLS: Anthropic.Beta.BetaTool[] = [
     description:
       'Rekap semua mahasiswa bimbingan: status terakhir Bab 1-4 (dengan jumlah versi) dan tanggal unggahan terakhir. Pakai untuk pertanyaan seperti "siapa saja yang sudah disetujui Bab 3" atau "berapa mahasiswa yang belum unggah Bab 1".',
     input_schema: { type: 'object', properties: {} },
+  },
+];
+
+// Aksi untuk data kresna-dosen sendiri (sumber "bimbingan"); sama seperti absensi: hanya rencana, dosen membalas "ya".
+const TOOLS_AKSI_BIMBINGAN: Anthropic.Beta.BetaTool[] = [
+  {
+    name: 'rencana_ubah_judul_skripsi',
+    description:
+      'Membuat RENCANA mengubah judul skripsi mahasiswa di kresna-dosen (judul yang tampil di web bimbingan). Belum mengubah apa pun; dosen harus membalas "ya". Judul di SISKA tidak ikut berubah.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        mahasiswa: { type: 'string', description: 'Nama (boleh sebagian) atau NIM persis seperti disebut dosen.' },
+        judul: { type: 'string', description: 'Judul baru persis seperti ditulis dosen, tanpa tanda kutip.' },
+      },
+      required: ['mahasiswa', 'judul'],
+    },
   },
 ];
 
@@ -528,6 +546,10 @@ async function jalankanTool(nama: string, input: unknown, ctx: Konteks, diizinka
     return riwayatBimbingan(n.trim().slice(0, 100));
   }
   if (nama === 'progres_semua_mahasiswa') return progresSemuaMahasiswa();
+  if (nama === 'rencana_ubah_judul_skripsi') {
+    const f = (input ?? {}) as { mahasiswa?: unknown; judul?: unknown };
+    return rencanaUbahJudul({ mahasiswa: typeof f.mahasiswa === 'string' ? f.mahasiswa.slice(0, 100) : '', judul: typeof f.judul === 'string' ? f.judul.slice(0, 600) : '' }, ctx);
+  }
   if (nama === 'data_kelas_spk' && spkSiap()) {
     const f = (input ?? {}) as { nim?: unknown; algoritma?: unknown };
     return dataKelasSpk({ nim: typeof f.nim === 'string' ? f.nim : undefined, algoritma: typeof f.algoritma === 'string' ? f.algoritma : undefined });
@@ -638,7 +660,7 @@ async function tanyaClaude(pertanyaan: string, nama: string | null, dokumen: { j
   });
 
   const tools = [
-    ...(sumber.has('bimbingan') ? TOOLS : []),
+    ...(sumber.has('bimbingan') ? [...TOOLS, ...TOOLS_AKSI_BIMBINGAN] : []),
     ...(sumber.has('spk') && spkSiap() ? [TOOL_SPK] : []),
     ...(sumber.has('bengkel') && bengkelSiap() ? TOOLS_BENGKEL : []),
     ...(sumber.has('siska') && siskaSiap() ? [...TOOLS_SISKA, ...TOOLS_AKSI] : []),
@@ -765,7 +787,8 @@ export async function tanganiPesanBot(payload: unknown, me: unknown) {
 
     // Absensi lewat bot hanya untuk nomor yang tercantum di daftar izin; daftar kosong = fitur ubah mati.
     const ctx: Konteks = { chatId, pengirimId: pesan.pengirimId, bolehMengubah: (await nomorIzinBot()).length > 0 };
-    if (siskaSiap() && sumber.has('siska') && t.pertanyaan) {
+    // Konfirmasi "ya"/"batal" untuk rencana yang menunggu (absensi/bimbingan SISKA, judul skripsi).
+    if (((siskaSiap() && sumber.has('siska')) || sumber.has('bimbingan')) && t.pertanyaan) {
       const konfirmasi = await tanganiKonfirmasi(t.pertanyaan, ctx);
       if (konfirmasi) {
         await kirimTeks(chatId, konfirmasi, pesan.id);
