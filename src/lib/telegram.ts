@@ -97,7 +97,7 @@ export async function notifRevisiTerkirim(
   keputusan: 'perlu_revisi' | 'disetujui',
   wajib: number,
   saran: number,
-  oleh: 'web' | 'mcp',
+  oleh: 'web' | 'mcp' | 'bot',
 ) {
   try {
     if (!telegramSiap()) return;
@@ -109,7 +109,7 @@ export async function notifRevisiTerkirim(
       keputusan === 'disetujui' ? '🎓 <b>Bab disetujui</b>' : '📝 <b>Revisi dikirim</b>',
       `<b>${esc(m.nama)}</b> (${esc(m.nim ?? '-')})`,
       esc(judul),
-      `Catatan: ${wajib} wajib, ${saran} saran · ${oleh === 'mcp' ? 'lewat agent AI' : 'lewat web'}`,
+      `Catatan: ${wajib} wajib, ${saran} saran · ${oleh === 'mcp' ? 'lewat agent AI' : oleh === 'bot' ? 'lewat bot WhatsApp' : 'lewat web'}`,
     ];
     if (app) baris.push('', `<a href="${app}/dosen/berkas/${b.id}">Lihat di aplikasi</a>`);
     await kirimTelegram(baris.join('\n'));
