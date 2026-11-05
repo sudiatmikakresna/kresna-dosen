@@ -100,14 +100,16 @@ Tiga server MCP bisa dipasang sebagai **custom connector** di Claude chat (claud
 | --- | --- | --- |
 | WhatsApp (WAHA) | `https://kresna-dosen.vercel.app/api/waha/mcp` | `status_whatsapp`, `daftar_chat`, `daftar_grup`, `baca_pesan`, `riwayat_grup_tersimpan`, `cek_nomor`, `kirim_pesan`, `tandai_dibaca` |
 | Bimbingan Skripsi | `https://kresna-dosen.vercel.app/api/mcp` | tool review di atas |
-| SISKA (presensi kuliah, bimbingan karya akhir, persetujuan sidang) | `https://kresna-dosen.vercel.app/api/siska/mcp` | `daftar_kelas`, `jadwal_mengajar`, `detail_kelas`, `lihat_presensi`, `mulai_pertemuan`, `ubah_presensi`, `tutup_presensi`, `daftar_mahasiswa_karya_akhir`, `daftar_bimbingan_karya_akhir`, `setujui_bimbingan_karya_akhir`, `daftar_persetujuan_sidang`, `detail_persetujuan_sidang`, `setujui_sidang` |
+| SISKA (presensi kuliah, nilai UTS/UAS, bimbingan karya akhir, persetujuan sidang) | `https://kresna-dosen.vercel.app/api/siska/mcp` | `daftar_kelas`, `jadwal_mengajar`, `detail_kelas`, `lihat_presensi`, `mulai_pertemuan`, `ubah_presensi`, `tutup_presensi`, `lihat_nilai`, `simpan_nilai_ujian`, `daftar_mahasiswa_karya_akhir`, `daftar_bimbingan_karya_akhir`, `setujui_bimbingan_karya_akhir`, `daftar_persetujuan_sidang`, `detail_persetujuan_sidang`, `setujui_sidang` |
 
 Pasang: Claude → **Customize → Connectors → Add → Custom → Web** → isi nama dan URL → **Add** → **Connect**.
 Claude membuka `/oauth/izin`; masuk sebagai dosen lalu klik **Izinkan**. Koneksi aktif terlihat dan bisa dicabut di
 **Panel dosen → Koneksi MCP**.
 
 Connector SISKA memakai `SISKA_COOKIE` (cookie `remember_web_…` akun dosen, sama dengan aplikasi absensi-siska) di
-environment Vercel; client SISKA ada di `src/lib/siska/`. Persetujuan bimbingan skripsi/karya terapan
+environment Vercel; client SISKA ada di `src/lib/siska/`. Nilai UTS/UAS (`src/lib/siska/nilai.ts`) memakai POST
+`/dosen/kelas-kuliah/{id}/nilai` dengan `{ grades }`, sama dengan tombol Simpan Nilai. Kolom ujian mahasiswa yang belum eligible
+dilewati seperti di web SISKA, hasilnya dibaca ulang lewat `…/nilai/data`, dan connector tidak menyediakan kunci atau umumkan nilai. Persetujuan bimbingan skripsi/karya terapan
 (`src/lib/siska/bimbingan.ts`) memakai endpoint yang sama dengan menu Tingkat Akhir → Bimbingan di SISKA: datatable
 `/dosen/{skripsi|karya-terapan}/{id}/bimbingan/datatable` dan Inertia POST `…/bimbingan/bulk-approve` dengan
 `{ ids }`; hanya id milik karya akhir itu yang dikirim dan statusnya dibaca ulang setelahnya.

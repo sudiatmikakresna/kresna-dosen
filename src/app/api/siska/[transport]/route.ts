@@ -5,6 +5,7 @@ import { metadataPath } from '@/lib/oauth';
 import { siskaSiap } from '@/lib/siska/client';
 import { getKelas, jadwalTanggal, listKelas, mulaiSesi } from '@/lib/siska/kelas';
 import { getPresensi, tutupPresensi, ubahPresensi } from '@/lib/siska/presensi';
+import { getNilai, simpanNilaiUjian } from '@/lib/siska/nilai';
 import { daftarBimbingan, daftarKaryaAkhir, setujuiBimbingan } from '@/lib/siska/bimbingan';
 import { daftarPersetujuanSidang, detailPersetujuanSidang, setujuiSidang } from '@/lib/siska/sidang';
 
@@ -138,6 +139,45 @@ const handler = createMcpHandler(
         annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: true },
       },
       aman(async ({ id_karya_akhir_dosen }) => json(await setujuiSidang(id_karya_akhir_dosen))),
+    );
+
+    server.registerTool(
+      'lihat_nilai',
+      {
+        title: 'Lihat nilai kelas',
+        description:
+          'Tabel nilai satu kelas di SISKA: komponen dan bobot, nilai tiap mahasiswa, nilai akhir, huruf, ' +
+          'kelayakan UTS/UAS beserta alasannya, dan status input, kunci, serta pengumuman nilai.',
+        inputSchema: { kelas_id: idKelas },
+        annotations: BACA,
+      },
+      aman(async ({ kelas_id }) => json(await getNilai(kelas_id))),
+    );
+
+    server.registerTool(
+      'simpan_nilai_ujian',
+      {
+        title: 'Simpan nilai UTS atau UAS',
+        description:
+          'Menyimpan nilai UTS atau UAS satu kelas di SISKA atas nama dosen. Isi `nilai` untuk nilai per mahasiswa, atau `nilai_semua` ' +
+          'untuk nilai yang sama ke seluruh kelas. Tampilkan dulu kelas, ujian, dan nilainya, lalu minta konfirmasi dosen. Nilai null ' +
+          'mengosongkan nilai. Mahasiswa yang belum eligible dilewati dan dilaporkan di `dilewati`, sama dengan kolom terkunci di web SISKA. ' +
+          'Hasilnya dibaca ulang dari SISKA. Tool ini tidak mengunci atau mengumumkan nilai.',
+        inputSchema: {
+          kelas_id: idKelas,
+          ujian: z.enum(['UTS', 'UAS']),
+          nilai: z
+            .array(z.object({ nim: z.string(), nilai: z.number().min(0).max(100).nullable() }))
+            .min(1)
+            .optional()
+            .describe('Nilai per mahasiswa. Kosongkan kalau memakai nilai_semua'),
+          nilai_semua: z.number().min(0).max(100).nullable().optional().describe('Nilai yang sama untuk seluruh kelas'),
+        },
+        annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: true },
+      },
+      aman(async ({ kelas_id, ujian, nilai, nilai_semua }) =>
+        json(await simpanNilaiUjian(kelas_id, ujian, { nilai, semua: nilai_semua })),
+      ),
     );
 
     server.registerTool(
