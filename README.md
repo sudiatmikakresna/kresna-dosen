@@ -2,7 +2,7 @@
 
 Sistem bimbingan skripsi untuk dosen pembimbing:
 
-- Mahasiswa **daftar dengan NIM, nama, dan password**, lalu masuk ke dashboard.
+- Mahasiswa **daftar dengan NIM, nama, password, dan kode pendaftaran dari dosen**, lalu masuk ke dashboard. Pendaftaran dibatasi per IP dan setiap pendaftar baru dikirim ke Telegram dosen.
 - Mahasiswa **mengunggah berkas** per bab (PDF/DOCX hingga 20 MB), **dokumen lainnya** seperti lampiran dan data hasil penelitian (PDF, DOCX, XLSX, PPTX, CSV, ZIP, PNG/JPG), atau **mengirim link Google Docs**. Setiap kiriman menjadi versi baru dan **disimpan di Google Drive dosen**.
 - Mahasiswa membuka berkas untuk melihat **pratinjau dan revisi dari dosen**, lalu menandai revisi yang sudah diperbaiki.
 - Dosen menelusuri **kemajuan dan riwayat** setiap mahasiswa, meninjau berkas, dan mengirim revisi.
@@ -17,6 +17,7 @@ Stack: Next.js (App Router) · Bootstrap 5 dengan tema Primakara · Neon Postgre
 3. Siapkan OAuth Google (lihat bagian berikut), lalu tambahkan environment variable:
    - `SESSION_SECRET`: string acak minimal 32 karakter (juga dipakai mengenkripsi token Google)
    - `SETUP_KEY`: kunci untuk membuat akun dosen pertama kali
+   - `KODE_DAFTAR`: kode yang dosen bagikan ke mahasiswa bimbingan untuk mendaftar. Kosong berarti pendaftaran ditutup.
    - `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`
    - `APP_URL`: alamat produksi, mis. `https://kresna-dosen.vercel.app`
    - `GOOGLE_HD` (opsional): `primakara.ac.id`

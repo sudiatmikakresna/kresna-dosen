@@ -7,7 +7,18 @@ import { z } from 'zod';
 import { db, users } from '@/db';
 import { buatSesi, hapusSesi } from '@/lib/auth';
 import { catatAktivitas } from '@/lib/service';
-import { catatLoginGagal, catatReset, ipPeminta, loginTerkunci, peringatan, resetTerlaluSering } from '@/lib/keamanan';
+import {
+  catatDaftar,
+  catatLoginGagal,
+  catatReset,
+  daftarTerlaluSering,
+  ipPeminta,
+  kodeDaftarBenar,
+  loginTerkunci,
+  pendaftaranDibuka,
+  peringatan,
+  resetTerlaluSering,
+} from '@/lib/keamanan';
 import { esc } from '@/lib/telegram';
 
 export type FormState = { error?: string } | undefined;
@@ -18,20 +29,30 @@ const daftarSchema = z
     nama: z.string().trim().min(3, 'Nama terlalu pendek.').max(120),
     password: z.string().min(8, 'Password minimal 8 karakter.').max(128),
     password2: z.string(),
+    kode: z.string().trim().min(1, 'Isi kode pendaftaran dari dosen pembimbing.').max(64),
   })
   .refine((d) => d.password === d.password2, { message: 'Ulangi password tidak sama.' });
 
 export async function daftar(_: FormState, form: FormData): Promise<FormState> {
   const parsed = daftarSchema.safeParse(Object.fromEntries(form));
   if (!parsed.success) return { error: parsed.error.issues[0].message };
-  const { nim, nama, password } = parsed.data;
+  const { nim, nama, password, kode } = parsed.data;
+  if (!pendaftaranDibuka()) return { error: 'Pendaftaran sedang ditutup. Hubungi dosen pembimbing.' };
+  const ip = await ipPeminta();
+  if (await daftarTerlaluSering(ip)) return { error: 'Terlalu banyak pendaftaran dari jaringan ini. Coba lagi 1 jam lagi.' };
+  if (!kodeDaftarBenar(kode)) {
+    await catatDaftar(nim, ip, false);
+    return { error: 'Kode pendaftaran salah. Minta kode ke dosen pembimbing.' };
+  }
   const [ada] = await db().select({ id: users.id }).from(users).where(eq(users.nim, nim)).limit(1);
   if (ada) return { error: 'NIM sudah terdaftar. Silakan masuk.' };
   const [user] = await db()
     .insert(users)
     .values({ role: 'mahasiswa', nim, nama, passwordHash: await bcrypt.hash(password, 10) })
     .returning();
+  await catatDaftar(nim, ip, true);
   await catatAktivitas(user.id, 'Mendaftar ke sistem bimbingan');
+  await peringatan(`🆕 <b>Mahasiswa baru mendaftar</b>: ${esc(nama)} (<code>${esc(nim)}</code>) dari IP <code>${esc(ip)}</code>. Bila bukan mahasiswa bimbingan, hapus akunnya.`);
   await buatSesi(user);
   redirect('/mahasiswa');
 }

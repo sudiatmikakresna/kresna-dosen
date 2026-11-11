@@ -64,3 +64,46 @@ export async function resetTerlaluSering(nim: string, ip: string) {
 export async function catatReset(nim: string, ip: string) {
   await db().insert(loginGagal).values({ username: `reset:${nim}`.slice(0, 64), ip });
 }
+
+/**
+ * Batas pendaftaran mahasiswa per IP dalam 1 jam: maksimal 10 kode salah dan 20 akun baru. Batasnya longgar karena
+ * satu kelas di Wi-Fi kampus bisa memakai IP yang sama. Dicatat di tabel loginGagal dengan username berawalan
+ * "daftar:" (berhasil) atau "daftar-salah:" (kode salah), jadi tidak ikut menghitung kunci login dosen.
+ */
+const JENDELA_DAFTAR_MS = 60 * 60_000;
+const MAKS_KODE_SALAH = 10;
+const MAKS_DAFTAR = 20;
+
+async function jumlahDaftar(ip: string, awalan: string) {
+  const [r] = await db()
+    .select({ n: count() })
+    .from(loginGagal)
+    .where(and(eq(loginGagal.ip, ip), like(loginGagal.username, `${awalan}%`), gt(loginGagal.createdAt, new Date(Date.now() - JENDELA_DAFTAR_MS))));
+  return Number(r?.n ?? 0);
+}
+
+export async function daftarTerlaluSering(ip: string) {
+  const [salah, berhasil] = await Promise.all([jumlahDaftar(ip, 'daftar-salah:'), jumlahDaftar(ip, 'daftar:')]);
+  return salah >= MAKS_KODE_SALAH || berhasil >= MAKS_DAFTAR;
+}
+
+export async function catatDaftar(nim: string, ip: string, berhasil: boolean) {
+  await db().insert(loginGagal).values({ username: `${berhasil ? 'daftar:' : 'daftar-salah:'}${nim}`.slice(0, 64), ip });
+  if (!berhasil && (await jumlahDaftar(ip, 'daftar-salah:')) === MAKS_KODE_SALAH) {
+    await peringatan(`🚨 <b>Pendaftaran dikunci 1 jam</b>\n${MAKS_KODE_SALAH} kode pendaftaran salah dari IP <code>${esc(ip)}</code>.`);
+  }
+}
+
+/** Bandingkan kode pendaftaran dengan KODE_DAFTAR. Kosong berarti pendaftaran ditutup. */
+export function pendaftaranDibuka() {
+  return Boolean(process.env.KODE_DAFTAR?.trim());
+}
+
+export function kodeDaftarBenar(kode: string) {
+  const benar = process.env.KODE_DAFTAR?.trim().toUpperCase() ?? '';
+  const masuk = kode.trim().toUpperCase();
+  if (!benar || masuk.length !== benar.length) return false;
+  let beda = 0;
+  for (let i = 0; i < benar.length; i++) beda |= benar.charCodeAt(i) ^ masuk.charCodeAt(i);
+  return beda === 0;
+}

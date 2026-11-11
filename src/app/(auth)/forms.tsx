@@ -43,6 +43,11 @@ export function DaftarForm() {
       </div>
       <PasswordField id="password" label="Password" autoComplete="new-password" placeholder="Minimal 8 karakter" show={show} onToggle={() => setShow(!show)} />
       <PasswordField id="password2" label="Ulangi password" autoComplete="new-password" placeholder="Ketik ulang password" show={show} />
+      <div className="mb-3">
+        <label htmlFor="kode" className="form-label">Kode pendaftaran</label>
+        <input id="kode" name="kode" autoComplete="off" className="form-control font-monospace" required />
+        <div className="form-text">Didapat dari dosen pembimbing.</div>
+      </div>
       <SubmitButton className="btn btn-primary w-100 py-2 mt-2">Daftar</SubmitButton>
     </form>
   );
