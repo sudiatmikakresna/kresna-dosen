@@ -421,3 +421,26 @@ export async function aturPasswordMahasiswa(id: number, _: PasswordState, form: 
   await catatAktivitas(m.id, 'Password diatur ulang oleh dosen');
   return { ok: `Password ${m.nama} sudah diganti. Beri tahu mahasiswanya; sesi login lamanya sudah tidak berlaku.` };
 }
+
+const PASSWORD_LEMAH = ['password', 'password123', 'password1234', '12345678', '123456789', '1234567890', 'qwerty123', 'admin123', 'dosen123'];
+
+/**
+ * Dosen mengganti password sendiri. Butuh password lama, minimal 12 karakter, dan bukan password umum. Semua sesi dosen
+ * (termasuk sesi ini) tidak berlaku lagi, lalu dosen masuk ulang dengan password baru.
+ */
+export async function gantiPasswordDosen(_: PasswordState, form: FormData): Promise<PasswordState> {
+  const dosen = await wajibDosen();
+  const lama = String(form.get('lama') ?? '');
+  const baru = String(form.get('password') ?? '');
+  const baru2 = String(form.get('password2') ?? '');
+  if (!(await bcrypt.compare(lama, dosen.passwordHash))) return { error: 'Password lama salah.' };
+  if (baru.length < 12) return { error: 'Password baru minimal 12 karakter.' };
+  if (baru.length > 128) return { error: 'Password terlalu panjang.' };
+  if (baru !== baru2) return { error: 'Konfirmasi password tidak sama.' };
+  if (baru === lama) return { error: 'Password baru harus berbeda dari password lama.' };
+  if (PASSWORD_LEMAH.includes(baru.toLowerCase()) || /^(.)\1+$/.test(baru)) return { error: 'Password terlalu mudah ditebak. Pakai kalimat atau kombinasi acak.' };
+  await db().update(users).set({ passwordHash: await bcrypt.hash(baru, 10), passwordDiubahAt: new Date() }).where(eq(users.id, dosen.id));
+  const { peringatan } = await import('@/lib/keamanan');
+  await peringatan(`🔑 <b>Password dosen diganti</b> dari panel dosen. Semua sesi lama sudah tidak berlaku. Bukan Anda? Segera hubungi admin.`);
+  redirect('/dosen/masuk');
+}

@@ -1,6 +1,6 @@
 import 'server-only';
 import { headers } from 'next/headers';
-import { and, count, eq, gt, like, lt } from 'drizzle-orm';
+import { and, count, eq, gt, like, lt, notLike } from 'drizzle-orm';
 import { db, loginGagal } from '@/db';
 import { esc, kirimTelegram } from './telegram';
 
@@ -17,7 +17,14 @@ async function jumlahGagal(kolom: 'username' | 'ip', nilai: string) {
   const [r] = await db()
     .select({ n: count() })
     .from(loginGagal)
-    .where(and(eq(kolom === 'username' ? loginGagal.username : loginGagal.ip, nilai), gt(loginGagal.createdAt, new Date(Date.now() - JENDELA_MS))));
+    .where(
+      and(
+        eq(kolom === 'username' ? loginGagal.username : loginGagal.ip, nilai),
+        // Catatan berawalan "xxx:" milik mahasiswa (login, daftar, reset), jadi tidak ikut mengunci login dosen.
+        notLike(loginGagal.username, '%:%'),
+        gt(loginGagal.createdAt, new Date(Date.now() - JENDELA_MS)),
+      ),
+    );
   return Number(r?.n ?? 0);
 }
 
@@ -47,22 +54,32 @@ export async function peringatan(html: string) {
 }
 
 /**
- * Batas reset password mandiri mahasiswa: maksimal 3 per NIM dan 10 per IP dalam 1 jam. Dicatat di tabel loginGagal
- * dengan username berawalan "reset:", jadi tidak ikut menghitung kunci login dosen per username.
+ * Batas login mahasiswa: maksimal 8 gagal per NIM dan 30 gagal per IP dalam 15 menit (satu kelas bisa berbagi IP
+ * Wi-Fi kampus). Dicatat di tabel loginGagal dengan username berawalan "masuk:".
  */
-const JENDELA_RESET_MS = 60 * 60_000;
+const MAKS_GAGAL_MHS_NIM = 8;
+const MAKS_GAGAL_MHS_IP = 30;
 
-export async function resetTerlaluSering(nim: string, ip: string) {
-  const sejak = new Date(Date.now() - JENDELA_RESET_MS);
+async function jumlahGagalMahasiswa(nim: string, ip: string) {
+  const sejak = new Date(Date.now() - JENDELA_MS);
   const [[perNim], [perIp]] = await Promise.all([
-    db().select({ n: count() }).from(loginGagal).where(and(eq(loginGagal.username, `reset:${nim}`.slice(0, 64)), gt(loginGagal.createdAt, sejak))),
-    db().select({ n: count() }).from(loginGagal).where(and(eq(loginGagal.ip, ip), like(loginGagal.username, 'reset:%'), gt(loginGagal.createdAt, sejak))),
+    db().select({ n: count() }).from(loginGagal).where(and(eq(loginGagal.username, `masuk:${nim}`.slice(0, 64)), gt(loginGagal.createdAt, sejak))),
+    db().select({ n: count() }).from(loginGagal).where(and(eq(loginGagal.ip, ip), like(loginGagal.username, 'masuk:%'), gt(loginGagal.createdAt, sejak))),
   ]);
-  return Number(perNim?.n ?? 0) >= 3 || Number(perIp?.n ?? 0) >= 10;
+  return { nim: Number(perNim?.n ?? 0), ip: Number(perIp?.n ?? 0) };
 }
 
-export async function catatReset(nim: string, ip: string) {
-  await db().insert(loginGagal).values({ username: `reset:${nim}`.slice(0, 64), ip });
+export async function loginMahasiswaTerkunci(nim: string, ip: string) {
+  const n = await jumlahGagalMahasiswa(nim, ip);
+  return n.nim >= MAKS_GAGAL_MHS_NIM || n.ip >= MAKS_GAGAL_MHS_IP;
+}
+
+export async function catatLoginMahasiswaGagal(nim: string, ip: string) {
+  await db().insert(loginGagal).values({ username: `masuk:${nim}`.slice(0, 64), ip });
+  const n = await jumlahGagalMahasiswa(nim, ip);
+  if (n.nim === MAKS_GAGAL_MHS_NIM || n.ip === MAKS_GAGAL_MHS_IP) {
+    await peringatan(`🚨 <b>Login mahasiswa dikunci 15 menit</b>\nNIM <code>${esc(nim)}</code> dari IP <code>${esc(ip)}</code> (${n.nim} gagal per NIM, ${n.ip} gagal per IP).`);
+  }
 }
 
 /**

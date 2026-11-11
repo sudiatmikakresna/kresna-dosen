@@ -10,14 +10,14 @@ import { catatAktivitas } from '@/lib/service';
 import {
   catatDaftar,
   catatLoginGagal,
-  catatReset,
+  catatLoginMahasiswaGagal,
   daftarTerlaluSering,
   ipPeminta,
   kodeDaftarBenar,
+  loginMahasiswaTerkunci,
   loginTerkunci,
   pendaftaranDibuka,
   peringatan,
-  resetTerlaluSering,
 } from '@/lib/keamanan';
 import { esc } from '@/lib/telegram';
 
@@ -60,8 +60,11 @@ export async function daftar(_: FormState, form: FormData): Promise<FormState> {
 export async function masuk(_: FormState, form: FormData): Promise<FormState> {
   const nim = String(form.get('nim') ?? '').trim();
   const password = String(form.get('password') ?? '');
+  const ip = await ipPeminta();
+  if (await loginMahasiswaTerkunci(nim, ip)) return { error: 'Terlalu banyak percobaan gagal. Coba lagi 15 menit lagi.' };
   const [user] = await db().select().from(users).where(eq(users.nim, nim)).limit(1);
   if (!user || user.role !== 'mahasiswa' || !(await bcrypt.compare(password, user.passwordHash))) {
+    await catatLoginMahasiswaGagal(nim, ip);
     return { error: 'NIM atau password salah.' };
   }
   await buatSesi(user);
@@ -119,32 +122,4 @@ export async function setupDosen(_: FormState, form: FormData): Promise<FormStat
 export async function keluar() {
   await hapusSesi();
   redirect('/masuk');
-}
-
-const resetSchema = z
-  .object({
-    nim: z.string().trim().regex(/^[0-9A-Za-z.\-]{5,20}$/, 'NIM tidak valid.'),
-    password: z.string().min(8, 'Password minimal 8 karakter.').max(128),
-    password2: z.string(),
-  })
-  .refine((d) => d.password === d.password2, { message: 'Konfirmasi password tidak sama.' });
-
-/**
- * Lupa password mahasiswa, tanpa email: NIM + password baru + konfirmasi. Dibatasi 3 kali per NIM per jam,
- * sesi lama langsung tidak berlaku, tercatat di riwayat aktivitas, dan dosen diberi tahu lewat Telegram supaya
- * penggantian oleh orang lain cepat ketahuan.
- */
-export async function lupaPassword(_: FormState, form: FormData): Promise<FormState> {
-  const parsed = resetSchema.safeParse(Object.fromEntries(form));
-  if (!parsed.success) return { error: parsed.error.issues[0].message };
-  const { nim, password } = parsed.data;
-  const ip = await ipPeminta();
-  if (await resetTerlaluSering(nim, ip)) return { error: 'Terlalu sering mengganti password. Coba lagi 1 jam lagi atau hubungi dosen pembimbing.' };
-  const [user] = await db().select().from(users).where(eq(users.nim, nim)).limit(1);
-  if (!user || user.role !== 'mahasiswa') return { error: 'NIM belum terdaftar. Silakan daftar dulu.' };
-  await catatReset(nim, ip);
-  await db().update(users).set({ passwordHash: await bcrypt.hash(password, 10), passwordDiubahAt: new Date() }).where(eq(users.id, user.id));
-  await catatAktivitas(user.id, 'Password diganti lewat halaman lupa password');
-  await peringatan(`🔁 <b>Password mahasiswa diganti</b> lewat halaman lupa password: ${esc(user.nama)} (<code>${esc(nim)}</code>) dari IP <code>${esc(ip)}</code>. Bila bukan mahasiswanya, atur ulang password di panel dosen.`);
-  redirect('/masuk?reset=1');
 }

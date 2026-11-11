@@ -13,7 +13,7 @@ export default async function MasukPage({ searchParams }: { searchParams: Promis
     >
       {reset && <div className="alert alert-success py-2 small">Password berhasil diganti. Silakan masuk dengan password baru.</div>}
       <MasukForm />
-      <p className="small text-center mt-3 mb-0"><Link href="/lupa-password">Lupa password?</Link></p>
+      <p className="small text-center mt-3 mb-0"><Link href="/lupa-password">Lupa password?</Link> Hubungi dosen pembimbing.</p>
     </AuthCard>
   );
 }

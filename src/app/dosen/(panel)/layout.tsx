@@ -23,6 +23,7 @@ export default async function DosenLayout({ children }: { children: React.ReactN
           { href: '/dosen/telegram', label: 'Telegram' },
           { href: '/dosen/whatsapp', label: 'WhatsApp' },
           { href: '/dosen/mcp', label: 'Koneksi MCP' },
+          { href: '/dosen/akun', label: 'Akun' },
         ]}
       >
         <div className="d-flex align-items-center gap-3 small">
